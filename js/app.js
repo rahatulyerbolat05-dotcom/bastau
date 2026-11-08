@@ -7,8 +7,9 @@
   var main = document.getElementById('main');
   var tabbar = document.getElementById('tabbar');
   var overlayRoot = document.getElementById('overlay-root');
-  var TABS = [['today', 'Сегодня', 'today'], ['review', 'Повторение', 'review'], ['sandbox', 'Песочница', 'sandbox'], ['progress', 'Прогресс', 'progress']];
+  var TABS = [['today', 'Сегодня', 'today'], ['review', 'Повторение', 'review'], ['sandbox', 'Песочница', 'sandbox'], ['examples', 'Примеры', 'code'], ['progress', 'Прогресс', 'progress']];
   var tab = 'today';
+  var exSub = null; // открытая программа во вкладке «Примеры»
   var courses = {};
   var openShell = null;
 
@@ -200,6 +201,7 @@
         lang: lang, review: false,
         setPrimary: shell.setPrimary, setSecondary: shell.setSecondary, banner: shell.banner, clearBanner: shell.clearBanner,
         cleanup: shell.addCleanup, summary: summary, confetti: confetti,
+        openExamples: function () { shell.close(); setTimeout(function () { go('examples'); }, 350); },
         finish: function (result, o) {
           if (finished) return; finished = true;
           result.ms = Date.now() - t0;
@@ -336,6 +338,10 @@
     clear(main).appendChild(h('div', { class: 'page' },
       h('header', { class: 'large-title' }, h('div', null, h('div', { class: 'overline', text: cap(fmtDate(Date.now(), { weekday: 'long', day: 'numeric', month: 'long' })) }), h('h1', { text: 'Сегодня' })), streakBtn),
       hero, reviewCard,
+      exData().length ? h('button', { class: 'card tap', onclick: function () { go('examples'); } },
+        h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('code', 22)),
+          h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Примеры из твоих программ' }), h('div', { class: 'row-s', text: 'Где живут строки, функции и условия в настоящих проектах' })),
+          icon('chevron', 18))) : null,
       h('section', { class: 'card', 'aria-label': 'Неделя' }, strip,
         h('div', { class: 'goal' }, h('div', { class: 'goal-row' }, h('span', { text: 'Цель дня — 5 минут' }), h('b', { text: Math.round(minToday * 10) / 10 + ' мин' })),
           h('div', { class: 'bar thin' }, h('div', { class: 'bar-fill', style: '--p:' + goalPct + '%' })),
@@ -425,6 +431,96 @@
       h('div', { class: 'conf-label', text: 'Попробуй' }), chips));
   }
 
+  /* ---------- вкладка «Примеры» ---------- */
+  function exData() { return (window.EXAMPLES && window.EXAMPLES.projects) || []; }
+  function inline(text) { // `код` внутри пояснений — отдельным элементом, без innerHTML
+    var out = [];
+    String(text).split('`').forEach(function (part, i) { out.push(i % 2 ? h('code', { text: part }) : part); });
+    return out;
+  }
+  function numberedCode(sn) {
+    var gut = h('div', { class: 'nb-gutter', 'aria-hidden': 'true' }, sn.nums.map(function (n) { return h('span', { text: n ? String(n) : '⋯' }); }));
+    var pre = h('pre', { class: 'nb-code' });
+    pre.innerHTML = C.highlight(sn.code, sn.lang); // highlight экранирует HTML
+    return h('div', { class: 'numblock', role: 'group', 'aria-label': 'Код из файла ' + sn.file + ', строки ' + sn.lines }, gut, h('div', { class: 'nb-scroll' }, pre));
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast('Скопировано.'); }, function () { toast('Не удалось скопировать — выдели код и скопируй вручную.'); });
+    } else toast('Копирование недоступно в этом браузере.');
+  }
+  function openInSandbox(demo) {
+    var st = S.get(); st.sandbox = st.sandbox || {};
+    st.sandbox[demo.lang] = demo.code; S.save();
+    sbLang = demo.lang;
+    if (demo.lang === 'py') R.preload('py');
+    go('sandbox');
+    toast('Пример в Песочнице — нажми «Запустить».');
+  }
+  function snippetCard(sn) {
+    var actions = [h('button', { class: 'btn secondary', onclick: function () { copyText(sn.code); } }, icon('copy', 18), 'Копировать')];
+    if (sn.demo) actions.push(h('button', { class: 'btn primary', onclick: function () { openInSandbox(sn.demo); } }, icon('play', 18), 'Запустить в песочнице'));
+    var demoOut = null;
+    if (sn.demo) {
+      demoOut = h('div', { class: 'demo-out' }, h('div', { class: 'conf-label', text: 'Что выведет пример (' + (sn.demo.lang === 'py' ? 'Python' : 'JavaScript') + ')' }),
+        sn.demo.out !== null && sn.demo.out !== undefined ? h('pre', { class: 'cmp-pre', text: sn.demo.out }) : null,
+        sn.demo.outNote ? h('p', { class: 'muted small', text: sn.demo.outNote }) : null);
+    }
+    return h('article', { class: 'card snip' },
+      h('h3', { class: 'snip-t', text: sn.title }),
+      h('div', { class: 'snip-file' }, icon('file', 14), h('code', { text: sn.file }), ' · строки ' + sn.lines),
+      numberedCode(sn),
+      h('div', { class: 'callout' }, h('b', { text: 'Связь с твоим уроком' }), h('p', null, inline(sn.bridge))),
+      h('div', { class: 'conf-label', text: 'На что смотреть' }),
+      h('ol', { class: 'notes' }, sn.notes.map(function (n) { return h('li', null, inline(n)); })),
+      demoOut,
+      h('div', { class: 'snip-actions' }, actions));
+  }
+  function renderExamples() {
+    var list = exData();
+    var proj = exSub ? list.filter(function (p) { return p.id === exSub; })[0] : null;
+    if (!list.length) {
+      clear(main).appendChild(h('div', { class: 'page' }, h('header', { class: 'large-title' }, h('div', null, h('h1', { text: 'Примеры' }))),
+        h('p', { class: 'muted', text: 'Не удалось загрузить примеры. Обнови страницу.' })));
+      return;
+    }
+    if (proj) {
+      var runnable = proj.snippets.filter(function (s) { return s.demo; }).length;
+      clear(main).appendChild(h('div', { class: 'page' },
+        h('button', { class: 'back-btn', onclick: function () { go('examples'); } }, icon('back', 20), 'Примеры'),
+        h('header', { class: 'ex-head' },
+          h('span', { class: 'ex-ic' }, icon(proj.icon, 28)),
+          h('h1', { text: proj.name }),
+          h('p', { class: 'ex-tag', text: proj.tagline }),
+          h('div', { class: 'chips' }, proj.stack.map(function (s) { return h('span', { class: 'pill', text: s }); }))),
+        h('section', { class: 'card flat facts' },
+          proj.stat ? h('div', { class: 'fact' }, h('span', { text: 'Размер' }), h('b', { text: proj.stat })) : null,
+          proj.commit ? h('div', { class: 'fact' }, h('span', { text: 'Версия' }), h('b', { text: 'коммит ' + proj.commit })) : null,
+          h('div', { class: 'fact' }, h('span', { text: 'Где лежит' }), h('b', { text: proj.where }))),
+        h('h2', { class: 'section-h', text: 'Как устроена' }),
+        h('section', { class: 'group' }, proj.tree.map(function (t) {
+          return h('div', { class: 'row tree-row' }, h('span', { class: 'row-ic' }, icon('file', 18)), h('div', { class: 'row-main' }, h('div', { class: 'row-t mono', text: t[0] }), h('div', { class: 'row-s', text: t[1] })));
+        })),
+        h('h2', { class: 'section-h', text: 'Фрагменты кода' }),
+        h('p', { class: 'muted small', text: 'Код показан дословно из рабочих файлов (убран только общий отступ слева); слева — номера строк в исходном файле.' + (runnable ? ' Примеры с кнопкой «Запустить» работают в Песочнице прямо здесь.' : '') }),
+        proj.snippets.map(snippetCard)));
+      return;
+    }
+    var rows = list.map(function (p) {
+      var run = p.snippets.filter(function (s) { return s.demo; }).length;
+      return h('button', { class: 'row tap ex-row', onclick: function () { go('examples', p.id); } },
+        h('span', { class: 'row-ic tint' }, icon(p.icon, 22)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: p.name }), h('div', { class: 'row-s clamp', text: p.tagline }),
+          h('div', { class: 'row-s', text: p.snippets.length + ' ' + plural(p.snippets.length, ['фрагмент', 'фрагмента', 'фрагментов']) + (run ? ' · можно запустить: ' + run : '') })),
+        icon('chevron', 18));
+    });
+    clear(main).appendChild(h('div', { class: 'page' },
+      h('header', { class: 'large-title' }, h('div', null, h('h1', { text: 'Примеры' }))),
+      h('p', { class: 'lead-sm', text: 'Реальные фрагменты из программ, которые я для тебя писал. Они собраны из тех же кирпичиков, что и твой Hello World: строки в кавычках, функции, условия, циклы. Выбери программу — увидишь, как она устроена.' }),
+      h('section', { class: 'group' }, rows),
+      h('p', { class: 'muted small', text: 'Это снимок на ' + (window.EXAMPLES.builtAt || '') + ': если программы изменятся, здесь останутся прежние версии фрагментов.' })));
+  }
+
   /* ---------- вкладка «Прогресс» ---------- */
   function renderProgress() {
     var st = S.get(), lang = st.lang, sk = C.streak(st.days, Date.now()), cs = C.cardStats(cardsOfLang(lang), Date.now());
@@ -494,11 +590,16 @@
   }
   function renderTab() {
     renderTabs();
-    if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'progress') renderProgress(); else renderToday();
+    if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'examples') renderExamples(); else if (tab === 'progress') renderProgress(); else renderToday();
   }
-  function go(t) {
-    tab = t;
-    try { history.replaceState(null, '', '#' + t); } catch (e) { /* ignore */ }
+  function parseHash() {
+    var parts = (location.hash || '').replace('#', '').split('/');
+    var t = TABS.some(function (x) { return x[0] === parts[0]; }) ? parts[0] : 'today';
+    return { tab: t, sub: t === 'examples' && parts[1] ? parts[1] : null };
+  }
+  function go(t, sub) {
+    tab = t; exSub = sub || null;
+    try { history.replaceState(null, '', '#' + t + (exSub ? '/' + exSub : '')); } catch (e) { /* ignore */ }
     renderTab();
     main.scrollTop = 0; window.scrollTo(0, 0);
     main.focus({ preventScroll: true });
@@ -540,8 +641,8 @@
 
   /* ---------- запуск ---------- */
   function start() {
-    var hash = (location.hash || '').replace('#', '');
-    tab = TABS.some(function (t) { return t[0] === hash; }) ? hash : 'today';
+    var ph = parseHash();
+    tab = ph.tab; exSub = ph.sub;
     applyTheme();
     renderTab();
     if (!S.get().welcomed) renderWelcome();
@@ -549,7 +650,7 @@
   }
   document.addEventListener('bastau:storage-failed', function () { toast('Не удаётся сохранять прогресс (приватный режим?). Сохрани файл в «Прогресс».'); });
   if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
-  window.addEventListener('hashchange', function () { var t = (location.hash || '').replace('#', ''); if (!openShell && TABS.some(function (x) { return x[0] === t; }) && t !== tab) go(t); });
+  window.addEventListener('hashchange', function () { var ph = parseHash(); if (!openShell && (ph.tab !== tab || ph.sub !== exSub)) go(ph.tab, ph.sub); });
 
   // автообновление «пора повторить» при возврате на вкладку
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && !openShell && (tab === 'today' || tab === 'review')) renderTab(); });

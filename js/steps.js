@@ -530,6 +530,7 @@
         stat(st.firstTry + ' из ' + st.total, 'с первой попытки'),
         stat(String(st.cards), 'карточек на завтра')),
       h('p', { class: 'foot-note center', text: 'Первое повторение — завтра. Один пропущенный день серию не обнуляет.' }),
+      api.openExamples ? h('button', { class: 'btn secondary lg', type: 'button', onclick: api.openExamples }, icon('code', 20), 'Где это живёт в реальных программах') : null,
       h('h2', { class: 'section-h', text: 'Бонус: то же самое в других языках' }),
       h('p', { class: 'muted', text: 'Здесь запускаются Python и JavaScript, остальное — для знакомства. Найди общее: команда вывода и текст в кавычках.' }),
       h('div', { class: 'ros-list' }, rosetta)));
