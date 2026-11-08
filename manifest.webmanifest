@@ -1,0 +1,19 @@
+{
+  "name": "Бастау — научись писать код",
+  "short_name": "Бастау",
+  "description": "Первая программа за 20 минут и повторения, чтобы ничего не забыть.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#0B7A4F",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Повторение", "url": "./#review" },
+    { "name": "Песочница", "url": "./#sandbox" }
+  ]
+}

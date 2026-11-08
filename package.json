@@ -1,0 +1,12 @@
+{
+  "name": "bastau",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Бастау — научись писать код: первая программа за 20 минут и повторения",
+  "scripts": {
+    "test": "node --test tests/core.test.js",
+    "serve": "python -m http.server 8830 --bind 127.0.0.1"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}
