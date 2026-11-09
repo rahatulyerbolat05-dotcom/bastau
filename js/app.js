@@ -590,8 +590,36 @@
   }
   function renderTab() {
     renderTabs();
-    if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'examples') renderExamples(); else if (tab === 'progress') renderProgress(); else renderToday();
+    try {
+      if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'examples') renderExamples(); else if (tab === 'progress') renderProgress(); else renderToday();
+    } catch (e) { renderFail(e); }
   }
+  // Если вкладка не нарисовалась — показываем причину на экране, а не молчим.
+  function diagText(e) {
+    var scripts = [].slice.call(document.scripts).map(function (s) { return (s.getAttribute('src') || '').match(/v=(\d+)/); }).filter(Boolean).map(function (m) { return m[1]; });
+    return [
+      'Ошибка: ' + (e && e.message || e),
+      'Вкладка: ' + tab + (exSub ? '/' + exSub : ''),
+      'Версия файлов: ' + (scripts.length ? scripts.join(',') : '?'),
+      'Примеры загружены: ' + ((window.EXAMPLES && window.EXAMPLES.projects && window.EXAMPLES.projects.length) || 0),
+      'Окно: ' + innerWidth + '×' + innerHeight + ', ' + navigator.userAgent,
+      'Где: ' + String(e && e.stack || '').split('\n').slice(0, 4).join(' | ')
+    ].join('\n');
+  }
+  function renderFail(e) {
+    var text = diagText(e);
+    var actions = [h('button', { class: 'btn secondary', onclick: function () { copyText(text); } }, icon('copy', 18), 'Скопировать описание')];
+    actions.push(tab === 'today'
+      ? h('button', { class: 'btn primary', onclick: function () { location.reload(); } }, 'Обновить страницу')
+      : h('button', { class: 'btn primary', onclick: function () { go('today'); } }, 'Вернуться на «Сегодня»'));
+    clear(main).appendChild(h('div', { class: 'page' },
+      h('header', { class: 'large-title' }, h('div', null, h('h1', { text: 'Не получилось открыть' }))),
+      h('p', { class: 'muted', text: 'Это ошибка приложения, не твоя. Нажми «Скопировать описание» и пришли мне — я исправлю.' }),
+      h('pre', { class: 'cmp-pre', text: text }),
+      h('div', { class: 'snip-actions' }, actions)));
+  }
+  window.addEventListener('error', function (ev) { if (ev && ev.message && !/ResizeObserver/.test(ev.message)) toast('Ошибка: ' + ev.message); });
+  window.addEventListener('unhandledrejection', function (ev) { var r = ev && ev.reason; toast('Ошибка: ' + (r && r.message || r)); });
   function parseHash() {
     var parts = (location.hash || '').replace('#', '').split('/');
     var t = TABS.some(function (x) { return x[0] === parts[0]; }) ? parts[0] : 'today';
