@@ -131,7 +131,7 @@
     var list = Array.isArray(accepts) ? accepts : [accepts];
     for (var i = 0; i < list.length; i++) if (v === list[i]) return { ok: true };
     for (var j = 0; j < list.length; j++) {
-      if (v.toLowerCase() === String(list[j]).toLowerCase()) return { ok: false, code: 'case', msg: 'Проверь регистр: все буквы команды строчные.' };
+      if (v.toLowerCase() === String(list[j]).toLowerCase()) return { ok: false, code: 'case', msg: 'Проверь регистр: заглавные и строчные буквы — разные символы.' };
     }
     if (v === '') return { ok: false, code: 'empty', msg: 'Поле пустое.' };
     return { ok: false, code: 'wrong', msg: 'Не то. Посмотри на разбор строки выше.' };
@@ -163,7 +163,9 @@
     [/'\(' was never closed/, 'Открыта скобка «(», но не закрыта. Добавь «)».'],
     [/unmatched '\)'/, 'Лишняя закрывающая скобка «)».'],
     [/Missing parentheses in call to 'print'/, 'В Python 3 после print нужны скобки: print(...).'],
-    [/NameError: name '([^']+)' is not defined/, function (m) { return 'Python не знает слово «' + m[1] + '». Проверь написание и регистр (print — только строчными). Если это текст — возьми его в кавычки.'; }],
+    [/NameError: name '([^']+)' is not defined/, function (m) { return 'Python не знает слово «' + m[1] + '». Проверь написание и регистр. Если это переменная — она должна быть создана выше и написана точно так же. Если это текст — возьми его в кавычки.'; }],
+    [/TypeError: can only concatenate str/, 'Нельзя сложить текст и число: Python не смешивает их сам. Преврати число в текст — str(5) — или выводи через запятую.'],
+    [/TypeError: unsupported operand type/, 'Эти значения разных типов (например, число и текст) нельзя так сложить. Проверь, где кавычки, а где нет.'],
     [/Perhaps you forgot a comma/, 'Похоже, текст внутри скобок нужно взять в кавычки (или пропущена запятая).'],
     [/invalid character/, 'В коде «чужой» символ — например, умные кавычки или длинное тире. Перепечатай его с клавиатуры.'],
     [/IndentationError: unexpected indent/, 'Лишний отступ: строка не должна начинаться с пробелов.'],
@@ -172,7 +174,7 @@
   var ERR_JS = [
     [/Invalid or unexpected token/, 'Не закрыта кавычка или встретился «чужой» символ (например, умные кавычки).'],
     [/missing \) after argument list/, 'Не закрыта скобка или пропущена запятая внутри скобок.'],
-    [/(\w+) is not defined/, function (m) { return 'JavaScript не знает слово «' + m[1] + '». Проверь написание и регистр (console — строчными). Если это текст — возьми его в кавычки.'; }],
+    [/(\w+) is not defined/, function (m) { return 'JavaScript не знает слово «' + m[1] + '». Проверь написание и регистр. Если это переменная — она должна быть создана выше (let …) и написана точно так же. Если это текст — возьми его в кавычки.'; }],
     [/Unexpected end of input/, 'Код оборвался: не хватает закрывающей скобки или кавычки.'],
     [/Unexpected identifier/, 'Лишнее слово: возможно, текст нужно взять в кавычки.'],
     [/Unexpected token/, 'Встретился неожиданный символ. Проверь кавычки и скобки.'],

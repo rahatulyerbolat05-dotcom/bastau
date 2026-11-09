@@ -364,6 +364,11 @@ a { color: var(--info); }
 .part-paren { box-shadow: inset 0 -2px 0 var(--label-2); }
 .part-quote, .part-text { color: var(--c-str); box-shadow: inset 0 -2px 0 var(--c-str); }
 .part-semi { color: var(--c-com); box-shadow: inset 0 -2px 0 var(--c-com); }
+.part-kw { color: var(--c-kw); box-shadow: inset 0 -2px 0 var(--c-kw); }
+.part-name { color: var(--c-fn); box-shadow: inset 0 -2px 0 var(--c-fn); }
+.part-eq { box-shadow: inset 0 -2px 0 var(--label-2); }
+.part-value, .part-str { color: var(--c-str); box-shadow: inset 0 -2px 0 var(--c-str); }
+.part-num { color: var(--c-num); box-shadow: inset 0 -2px 0 var(--c-num); }
 .part.active { background: var(--tint-bg); outline: 2px solid var(--tint); }
 .anat-card { background: var(--surface); border-radius: 14px; padding: var(--s4); box-shadow: var(--shadow); min-height: 108px; }
 .anat-role { font-size: var(--fs-title3); font-weight: 700; margin-bottom: 4px; }

@@ -1,16 +1,17 @@
-// Сквозной прогон урока в браузере: window.__e2e(lang, level) проходит все шаги реальными кликами по DOM.
+// Сквозной прогон урока в браузере: window.__e2e(lang, level, lessonId) проходит все шаги реальными кликами по DOM (lessonId: 'hello' | 'vars').
 // Загружается тегом <script> (CSP запрещает eval). Требует tests/browser-helpers.js.
-window.__e2e = async function (lang, level) {
+window.__e2e = async function (lang, level, lessonId) {
+  lessonId = lessonId || 'hello';
   const t = window.__t, { $, $$, sleep, waitFor, clickPrimary, step, banner, setCode, run, primary } = t;
   const out = [];
   const st = Store.get();
-  st.lang = lang; st.level = level || 'new'; st.welcomed = true; st.lessons['hello:' + lang] = { done: false, doneSteps: [], results: {}, startedAt: null, doneAt: null };
+  st.lang = lang; st.level = level || 'new'; st.welcomed = true; st.lessons[lessonId + ':' + lang] = { done: false, doneSteps: [], results: {}, startedAt: null, doneAt: null };
   Store.save(); __bastau.go('today'); await sleep(300);
-  const c = __bastau.course(lang);
+  const c = __bastau.course(lang, lessonId);
   const visible = c.steps.filter(s => !(s.novice && st.level === 'pro'));
   const errors = [];
   window.addEventListener('error', e => errors.push(e.message));
-  __bastau.openLesson(true); await sleep(500);
+  __bastau.openLesson(true, lessonId); await sleep(500);
   let guard = 0;
   while ($('.player') && guard++ < 40) {
     const m = /Шаг (\d+) из (\d+)/.exec(step() || '');
@@ -37,7 +38,7 @@ window.__e2e = async function (lang, level) {
       }
       case 'code': {
         let code = s.solution;
-        if (s.id === 'make2') code = lang === 'py' ? 'print("Привет!")\nprint("Меня зовут Ерболат")' : 'console.log("Привет!");\nconsole.log("Меня зовут Ерболат");';
+        if (lessonId === 'hello' && s.id === 'make2') code = lang === 'py' ? 'print("Привет!")\nprint("Меня зовут Ерболат")' : 'console.log("Привет!");\nconsole.log("Меня зовут Ерболат");';
         setCode(code); await run(); await waitFor(() => $('.banner.ok'), 5000, 'code ok:' + s.id); await clickPrimary(); break;
       }
       case 'quiz': {
@@ -60,7 +61,7 @@ window.__e2e = async function (lang, level) {
     await sleep(350);
   }
   await sleep(500);
-  const L = Store.get().lessons['hello:' + lang];
+  const L = Store.get().lessons[lessonId + ':' + lang];
   return { steps: out.join(', '), done: L.done, doneSteps: L.doneSteps.length, expected: visible.length, cards: Object.keys(Store.get().cards).filter(k => k.indexOf(lang + ':') === 0).length, jsErrors: errors };
 };
 'e2e loaded';

@@ -233,7 +233,7 @@
       var r = Core.parsonsCheck(texts, step.solutions);
       if (r.ok) {
         ansEl.classList.add('ok');
-        api.banner({ kind: 'ok', title: 'Собрано', text: 'Команда, скобки и текст в кавычках — всё на своих местах.' });
+        api.banner({ kind: 'ok', title: 'Собрано', text: step.okText || 'Команда, скобки и текст в кавычках — всё на своих местах.' });
         haptic(10);
         api.finish({ correct: fails === 0, tries: fails });
         return;
@@ -242,7 +242,7 @@
       ansEl.classList.remove('shake'); void ansEl.offsetWidth; ansEl.classList.add('shake');
       var tip = null;
       Object.keys(step.tipIf || {}).forEach(function (k) { if (texts.indexOf(k) !== -1) tip = step.tipIf[k]; });
-      api.banner({ kind: 'bad', title: 'Пока не то', text: tip || r.msg });
+      api.banner({ kind: 'bad', title: 'Пока не то', text: tip || (step.failMsg ? step.failMsg(r) : r.msg) });
       if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: step.hint }); } });
     }
     body.appendChild(h('div', { class: 'parsons' },
@@ -278,13 +278,13 @@
       });
       if (allOk) {
         inputs.forEach(function (x) { x.el.disabled = true; });
-        api.banner({ kind: 'ok', title: 'Всё сошлось', text: 'Команда плюс текст, ограниченный кавычками с двух сторон.' });
+        api.banner({ kind: 'ok', title: 'Всё сошлось', text: step.okText || 'Команда плюс текст, ограниченный кавычками с двух сторон.' });
         haptic(10);
         api.finish({ correct: fails === 0, tries: fails });
       } else {
         fails++;
         api.banner({ kind: 'bad', title: 'Есть ошибка', text: firstMsg });
-        if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: 'Первый пропуск — команда вывода. Два других — кавычки: одна открывает текст, другая закрывает.' }); } });
+        if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: step.hintText || 'Первый пропуск — команда вывода. Два других — кавычки: одна открывает текст, другая закрывает.' }); } });
       }
     }
     api.setPrimary({ label: 'Проверить', onClick: check });
@@ -337,7 +337,7 @@
         ed.focus(); return;
       }
       if (step.mode === 'modify' && code.trim() === (step.starter || '').trim()) {
-        api.banner({ kind: 'info', title: 'Пока без изменений', text: 'Поменяй текст внутри кавычек — и запусти снова.' });
+        api.banner({ kind: 'info', title: 'Пока без изменений', text: step.unchangedMsg || 'Поменяй текст внутри кавычек — и запусти снова.' });
         ed.focus(); return;
       }
       busy = true; runs++;
@@ -353,7 +353,7 @@
           if (!untouched) tries++;
           api.banner({ kind: untouched ? 'info' : 'bad', title: untouched ? 'Вот она, ошибка' : 'Есть ошибка', text: untouched ? 'Прочитай сообщение в «Выводе»: внизу — суть, выше — место. Теперь исправь код.' : 'Программа не запустилась. Прочитай сообщение в «Выводе» — оно подскажет место и причину.' });
         } else {
-          var v = step.validate ? step.validate(r.out) : window.Core.checkOutput(r.out, step.expect);
+          var v = step.validate ? step.validate(r.out, code) : window.Core.checkOutput(r.out, step.expect);
           if (v.ok) { return success(r); }
           tries++;
           api.banner({ kind: 'bad', title: 'Почти', text: v.msg, node: step.expect ? expectedVsGot(window.Core.normOut(step.expect), window.Core.normOut(r.out)) : null });
@@ -453,7 +453,7 @@
     });
     function compare() {
       ta.readOnly = true;
-      window.Store.get().notes.explain = ta.value.trim();
+      window.Store.get().notes[step.noteKey || 'explain'] = ta.value.trim();
       window.Store.save();
       modelBox.hidden = false;
       modelBox.appendChild(h('div', { class: 'model-h', text: 'Эталон' }));
@@ -518,22 +518,23 @@
   /* ---------- done ---------- */
   function mountDone(step, body, api) {
     var st = api.summary();
-    var rosetta = window.Course.ROSETTA.map(function (r) {
+    var withRosetta = step.rosetta !== false;
+    var rosetta = withRosetta ? window.Course.ROSETTA.map(function (r) {
       return h('details', { class: 'ros' }, h('summary', { text: r.name }), codeBlock(r.code, r.name === 'Python' ? 'py' : (r.name === 'JavaScript' ? 'js' : 'none')), r.note ? h('p', { class: 'muted', text: r.note }) : null);
-    });
+    }) : null;
     body.appendChild(h('div', { class: 'done' },
       h('div', { class: 'done-badge', 'aria-hidden': 'true' }, icon('check', 40)),
       h('h1', { class: 'step-title center', text: step.title }),
-      h('p', { class: 'lead center', text: 'Ты написал, запустил и починил код — это и есть программирование.' }),
+      h('p', { class: 'lead center', text: step.lead || 'Ты написал, запустил и починил код — это и есть программирование.' }),
       h('div', { class: 'stats' },
         stat(st.minutes + ' мин', 'сегодня'),
         stat(st.firstTry + ' из ' + st.total, 'с первой попытки'),
         stat(String(st.cards), 'карточек на завтра')),
-      h('p', { class: 'foot-note center', text: 'Первое повторение — завтра. Один пропущенный день серию не обнуляет.' }),
+      h('p', { class: 'foot-note center', text: step.foot || 'Первое повторение — завтра. Один пропущенный день серию не обнуляет.' }),
       api.openExamples ? h('button', { class: 'btn secondary lg', type: 'button', onclick: api.openExamples }, icon('code', 20), 'Где это живёт в реальных программах') : null,
-      h('h2', { class: 'section-h', text: 'Бонус: то же самое в других языках' }),
-      h('p', { class: 'muted', text: 'Здесь запускаются Python и JavaScript, остальное — для знакомства. Найди общее: команда вывода и текст в кавычках.' }),
-      h('div', { class: 'ros-list' }, rosetta)));
+      withRosetta ? h('h2', { class: 'section-h', text: 'Бонус: то же самое в других языках' }) : null,
+      withRosetta ? h('p', { class: 'muted', text: 'Здесь запускаются Python и JavaScript, остальное — для знакомства. Найди общее: команда вывода и текст в кавычках.' }) : null,
+      withRosetta ? h('div', { class: 'ros-list' }, rosetta) : null));
     api.confetti();
     api.setPrimary({ label: 'На главную', onClick: function () { api.finish({ correct: true }, { advance: true }); } });
   }

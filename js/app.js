@@ -14,12 +14,21 @@
   var openShell = null;
 
   /* ---------- утилиты ---------- */
-  function course(lang) { return courses[lang] || (courses[lang] = window.Course.build(lang)); }
+  function course(lang, id) { id = id || 'hello'; var k = lang + ':' + id; return courses[k] || (courses[k] = window.Course.build(lang, id)); }
+  var defsCache = {};
+  function cardDefs(lang) { return defsCache[lang] || (defsCache[lang] = window.Course.allCards(lang)); }
+  function lessonList() { return window.Course.LESSONS; }
+  // первый непройденный (и не пропущенный) урок; null — все готовые уроки пройдены
+  function currentLessonId(lang) {
+    var list = lessonList();
+    for (var i = 0; i < list.length; i++) { if (!S.lesson(lessonKey(lang, list[i].id)).done) return list[i].id; }
+    return null;
+  }
   function cardKey(lang, id) { return lang + ':' + id; }
   function langName(l) { return l === 'js' ? 'JavaScript' : 'Python'; }
   function plural(n, f) { var a = Math.abs(n) % 100, b = a % 10; return a > 10 && a < 20 ? f[2] : b > 1 && b < 5 ? f[1] : b === 1 ? f[0] : f[2]; }
   function fmtDate(ms, opts) { return new Intl.DateTimeFormat('ru-RU', opts).format(new Date(ms)); }
-  function lessonKey(lang) { return 'hello:' + lang; }
+  function lessonKey(lang, id) { return (id || 'hello') + ':' + lang; }
   function visibleSteps(c) { var lvl = S.get().level; return c.steps.filter(function (s) { return !(s.novice && lvl === 'pro'); }); }
   var WEIGHT = { intro: 0.5, predict: 1, anatomy: 1.5, parsons: 1.5, fill: 1, code: 2, quiz: 3, explain: 2, plan: 1, done: 0.5 };
   function minutesLeft(steps, L) {
@@ -174,15 +183,16 @@
   window.addEventListener('popstate', function () { if (openShell) openShell.teardown(); });
 
   /* ---------- урок ---------- */
-  function openLesson(restart) {
+  function openLesson(restart, id) {
     var lang = S.get().lang;
-    var c = course(lang);
-    var L = S.lesson(lessonKey(lang));
-    if (restart) { L.doneSteps = []; L.done = false; L.results = {}; }
+    id = id || currentLessonId(lang) || 'hello';
+    var c = course(lang, id);
+    var L = S.lesson(lessonKey(lang, id));
+    if (restart) { L.doneSteps = []; L.done = false; L.skipped = false; L.results = {}; }
     if (!L.startedAt) L.startedAt = Date.now();
     var steps = visibleSteps(c);
     if (lang === 'py') R.preload('py');
-    var shell = createShell({ title: 'Урок: Hello, World!', onClose: function () { renderTab(); } });
+    var shell = createShell({ title: 'День ' + c.day + ' · ' + c.title, onClose: function () { renderTab(); } });
     var idx = 0;
     for (var i = 0; i < steps.length; i++) { if (L.doneSteps.indexOf(steps[i].id) === -1) { idx = i; break; } idx = steps.length - 1; }
 
@@ -229,8 +239,8 @@
 
   /* ---------- повторение ---------- */
   function openReview() {
-    var lang = S.get().lang, c = course(lang);
-    var due = C.dueCards(cardsOfLang(lang), Date.now()).filter(function (cd) { return c.cards[cd.id.slice(lang.length + 1)]; });
+    var lang = S.get().lang, defs = cardDefs(lang);
+    var due = C.dueCards(cardsOfLang(lang), Date.now()).filter(function (cd) { return defs[cd.id.slice(lang.length + 1)]; });
     if (!due.length) { toast('Сейчас повторять нечего.'); return; }
     var queue = C.shuffle(due.slice(0, 10).map(function (cd) { return cd.id; }));
     var total = queue.length, completed = 0, requeued = {}, tally = { good: 0, hard: 0, again: 0 };
@@ -241,7 +251,7 @@
     function mountCard() {
       shell.runCleanups(); clear(shell.body); shell.clearBanner(); shell.setSecondary(null);
       if (!queue.length) { return summaryScreen(); }
-      var key = queue[0], def = c.cards[key.slice(lang.length + 1)], finished = false;
+      var key = queue[0], def = defs[key.slice(lang.length + 1)], finished = false;
       shell.setProgress(completed, total, 'Карточка ' + Math.min(completed + 1, total) + ' из ' + total);
       var api = {
         lang: lang, review: true,
@@ -281,10 +291,21 @@
   function statBox(v, l) { return h('div', { class: 'stat' }, h('div', { class: 'stat-v', text: v }), h('div', { class: 'stat-l', text: l })); }
 
   /* ---------- вкладка «Сегодня» ---------- */
+  function skipLesson(id) {
+    var lang = S.get().lang, L = S.lesson(lessonKey(lang, id)), c = course(lang, id);
+    L.done = true; L.skipped = true; L.doneAt = Date.now(); if (!L.startedAt) L.startedAt = Date.now();
+    S.save();
+    toast('День ' + c.day + ' пропущен. Он останется в списке — можно открыть в любой момент.');
+    renderTab();
+  }
+
   function renderToday() {
-    var st = S.get(), lang = st.lang, c = course(lang), L = S.lesson(lessonKey(lang));
+    var st = S.get(), lang = st.lang, list = lessonList();
+    var curId = currentLessonId(lang);
+    var heroId = curId || list[list.length - 1].id;
+    var c = course(lang, heroId), L = S.lesson(lessonKey(lang, heroId));
     var steps = visibleSteps(c);
-    var started = L.doneSteps.length > 0, finishedAll = L.done;
+    var started = L.doneSteps.length > 0, finishedAll = !curId;
     var sk = C.streak(st.days, Date.now());
     var cs = C.cardStats(cardsOfLang(lang), Date.now());
     var pct = Math.round(L.doneSteps.filter(function (id) { return steps.some(function (s) { return s.id === id; }); }).length / steps.length * 100);
@@ -292,17 +313,18 @@
     var hero;
     if (finishedAll) {
       hero = h('section', { class: 'hero done', 'aria-labelledby': 'hero-t' },
-        h('div', { class: 'hero-top' }, h('span', { class: 'eyebrow', text: 'День 1 · ' + langName(lang) }), h('span', { class: 'pill ok' }, icon('check', 14), 'Пройдено')),
-        h('h2', { id: 'hero-t', class: 'hero-title', text: 'Hello, World!' }),
-        h('p', { class: 'hero-sub', text: 'Первая программа написана. Следующий день появится позже — а пока закрепляй повторением.' }),
-        h('button', { class: 'btn secondary', onclick: function () { openLesson(true); } }, 'Пройти заново'));
+        h('div', { class: 'hero-top' }, h('span', { class: 'eyebrow', text: 'День ' + c.day + ' · ' + langName(lang) }), h('span', { class: 'pill ok' }, icon('check', 14), L.skipped ? 'Пропущено' : 'Пройдено')),
+        h('h2', { id: 'hero-t', class: 'hero-title', text: c.title }),
+        h('p', { class: 'hero-sub', text: 'Все готовые дни пройдены. Следующие появятся позже — а пока закрепляй повторением.' }),
+        h('button', { class: 'btn secondary', onclick: function () { openLesson(true, heroId); } }, 'Пройти заново'));
     } else {
       hero = h('section', { class: 'hero', 'aria-labelledby': 'hero-t' },
-        h('div', { class: 'hero-top' }, h('span', { class: 'eyebrow', text: 'День 1 · ' + langName(lang) }), h('span', { class: 'pill', text: '≈ ' + (started ? minutesLeft(steps, L) : c.minutes) + ' мин' })),
-        h('h2', { id: 'hero-t', class: 'hero-title', text: 'Hello, World!' }),
-        h('p', { class: 'hero-sub', text: started ? 'Осталось немного. Прогресс сохранён — продолжай с того места, где остановился.' : 'Твоя первая программа: предскажешь, разберёшь, соберёшь, починишь и напишешь сам.' }),
+        h('div', { class: 'hero-top' }, h('span', { class: 'eyebrow', text: 'День ' + c.day + ' · ' + langName(lang) }), h('span', { class: 'pill', text: '≈ ' + (started ? minutesLeft(steps, L) : c.minutes) + ' мин' })),
+        h('h2', { id: 'hero-t', class: 'hero-title', text: c.title }),
+        h('p', { class: 'hero-sub', text: started ? 'Осталось немного. Прогресс сохранён — продолжай с того места, где остановился.' : (c.day === 1 ? 'Твоя первая программа: предскажешь, разберёшь, соберёшь, починишь и напишешь сам.' : 'Новая тема: предскажешь, разберёшь, соберёшь, починишь и напишешь сам.') }),
         started ? h('div', { class: 'bar', role: 'progressbar', 'aria-valuenow': String(pct), 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': 'Прогресс урока' }, h('div', { class: 'bar-fill', style: '--p:' + pct + '%' })) : null,
-        h('button', { class: 'btn primary lg', onclick: function () { openLesson(false); } }, icon('play', 20), started ? 'Продолжить' : 'Начать урок'));
+        h('button', { class: 'btn primary lg', onclick: function () { openLesson(false, heroId); } }, icon('play', 20), started ? 'Продолжить' : 'Начать урок'),
+        h('button', { class: 'btn ghost lg', onclick: function () { skipLesson(heroId); } }, 'Пропустить — я это уже умею'));
     }
 
     var reviewCard;
@@ -327,10 +349,17 @@
     }));
     var minToday = S.minutesToday(), goalPct = Math.min(100, Math.round(minToday / 5 * 100));
 
-    var road = window.Course.ROADMAP.map(function (t, i) {
+    var road = list.map(function (l) {
+      var cl = course(lang, l.id), Ll = S.lesson(lessonKey(lang, l.id));
+      var status = Ll.done ? (Ll.skipped ? 'Пропущено · нажми, чтобы пройти' : 'Пройдено · нажми, чтобы пройти заново') : (l.id === curId ? 'Сейчас · ' + (Ll.doneSteps.length ? 'продолжить' : 'начать') : (Ll.doneSteps.length ? 'В процессе' : 'Можно открыть'));
+      return h('button', { class: 'row tap', onclick: function () { openLesson(!!Ll.done, l.id); } },
+        h('span', { class: 'row-ic' + (Ll.done ? ' tint' : '') }, icon(Ll.done ? 'check' : 'play', 20)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + cl.day + ' · ' + cl.title }), h('div', { class: 'row-s', text: status })),
+        icon('chevron', 18));
+    }).concat(window.Course.ROADMAP.map(function (t, i) {
       return h('div', { class: 'row locked' }, h('span', { class: 'row-ic' }, icon('lock', 20)),
-        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + (i + 2) + ' · ' + t }), h('div', { class: 'row-s', text: 'Скоро' })));
-    });
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + (list.length + i + 1) + ' · ' + t }), h('div', { class: 'row-s', text: 'Скоро' })));
+    }));
 
     var streakBtn = h('button', { class: 'streak' + (sk.alive ? ' alive' : ''), onclick: openStreak, 'aria-label': 'Серия: ' + sk.count + ' ' + plural(sk.count, ['день', 'дня', 'дней']) + '. Подробнее' },
       icon('flame', 18), h('b', { text: String(sk.count) }));
@@ -346,7 +375,7 @@
         h('div', { class: 'goal' }, h('div', { class: 'goal-row' }, h('span', { text: 'Цель дня — 5 минут' }), h('b', { text: Math.round(minToday * 10) / 10 + ' мин' })),
           h('div', { class: 'bar thin' }, h('div', { class: 'bar-fill', style: '--p:' + goalPct + '%' })),
           h('p', { class: 'muted small', text: 'Прийти на 5 минут важнее, чем сидеть час раз в неделю. Пропущенный день не страшен.' }))),
-      h('h2', { class: 'section-h', text: 'Дальше' }),
+      h('h2', { class: 'section-h', text: 'Дни курса' }),
       h('section', { class: 'group' }, road)));
   }
 
