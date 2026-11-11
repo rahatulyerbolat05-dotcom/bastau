@@ -21,7 +21,7 @@ Python загружается с CDN (jsDelivr, Pyodide 0.26.4, ≈10 МБ) пр
 ## Проверка
 
 ```bash
-node --test tests/core.test.js tests/examples.test.js tests/course.test.js
+node --test tests/core.test.js tests/examples.test.js tests/course.test.js tests/diagnose.test.js
 ```
 
 Покрыто: интервалы повторений, мягкая серия, проверка вывода/пропусков/блоков, подсветка кода (в т. ч. экранирование HTML), объяснения ошибок, `.ics`, проверка импорта.
@@ -62,7 +62,7 @@ node tools/build-examples.js   # на ПК, где лежат исходники
 ## Как добавить следующий день
 
 1. В `js/course.js` написать `buildХ(lang)` по образцу `buildVars()` — шаги тех же типов, карточки с уникальными `card`-id (между уроками они не должны повторяться), и добавить запись в `LESSONS` и диспетчер `build(lang, id)`. Убрать день из `ROADMAP`.
-2. Решения и «сломанные» старты проверит `tests/course.test.js`: он запускает их на настоящих Python и Node. Запусти тесты.
+2. Решения и «сломанные» старты проверит `tests/course.test.js tests/diagnose.test.js`: он запускает их на настоящих Python и Node. Запусти тесты.
 3. Карточки подхватятся автоматически: повторение берёт их из `Course.allCards(lang)`.
 4. Поднять `?v=N` в `index.html` и `sw.js`.
 

@@ -189,6 +189,214 @@
     }
     return null;
   }
+  // Лучшее из доступных объяснений: по коду → по тексту ошибки → общее с номером строки.
+  function friendlyError(lang, code, raw) {
+    var d = diagnose(lang, code, raw) || explainError(lang, raw);
+    if (d) return d;
+    var m = /line (\d+)/.exec(String(raw || ''));
+    return 'Эту ошибку я не умею объяснять автоматически.' + (m ? ' Посмотри на строку ' + m[1] + ':' : ' Проверь:') + ' все ли скобки и кавычки закрыты, нет ли опечаток в командах и именах.';
+  }
+
+  /* ---------- диагностика по коду: конкретная подсказка «что исправить» ----------
+     explainError смотрит только на текст ошибки. diagnose смотрит ещё и на сам код:
+     находит типичные промахи новичка и отвечает на языке его собственной программы. */
+  var HOMO = { 'а': 'a', 'с': 'c', 'е': 'e', 'о': 'o', 'р': 'p', 'х': 'x', 'у': 'y', 'к': 'k', 'А': 'A', 'В': 'B', 'С': 'C', 'Е': 'E', 'О': 'O', 'Р': 'P', 'Х': 'X', 'К': 'K', 'М': 'M', 'Т': 'T', 'Н': 'H' };
+  function latinize(w) { return String(w).replace(/[Ѐ-ӿ]/g, function (ch) { return HOMO[ch] || ch; }); }
+  function hasCyr(w) { return /[Ѐ-ӿ]/.test(w); }
+  function hasLat(w) { return /[A-Za-z]/.test(w); }
+
+  // Код без содержимого строк и комментариев (длина и переносы сохраняются) — чтобы шаблоны не срабатывали внутри текста.
+  function bareCode(code, lang) {
+    var s = String(code), out = '', i = 0, n = s.length;
+    while (i < n) {
+      var ch = s[i];
+      if ((lang === 'py' && ch === '#') || (lang === 'js' && ch === '/' && s[i + 1] === '/')) {
+        while (i < n && s[i] !== '\n') { out += ' '; i++; }
+        continue;
+      }
+      if (ch === '"' || ch === "'" || (lang === 'js' && ch === '`')) {
+        out += ch; i++;
+        while (i < n && s[i] !== ch && (ch === '`' || s[i] !== '\n')) {
+          if (s[i] === '\\' && i + 1 < n && s[i + 1] !== '\n') { out += '  '; i += 2; continue; }
+          out += s[i] === '\n' ? '\n' : ' '; i++;
+        }
+        if (i < n && s[i] === ch) { out += ch; i++; }
+        continue;
+      }
+      out += ch; i++;
+    }
+    return out;
+  }
+
+  function lev(a, b) {
+    var m = a.length, n = b.length, prev = [], cur = [], i, j;
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur = [i];
+      for (j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[n];
+  }
+
+  var ID = '[\\p{L}_$][\\p{L}\\p{N}_$]*';
+  function definedNames(bare, lang) {
+    var out = [], m, re;
+    if (lang === 'js') {
+      re = new RegExp('\\b(?:let|const|var)\\s+(' + ID + ')', 'gu');
+      while ((m = re.exec(bare))) out.push(m[1]);
+    } else {
+      re = new RegExp('\\bfor\\s+(' + ID + ')\\s+in\\b', 'gu');
+      while ((m = re.exec(bare))) out.push(m[1]);
+    }
+    re = new RegExp('^[ \\t]*(' + ID + ')[ \\t]*=(?!=)', 'gmu');
+    while ((m = re.exec(bare))) out.push(m[1]);
+    return out.filter(function (x, i) { return out.indexOf(x) === i; });
+  }
+  var KNOWN = {
+    py: ['print', 'range', 'len', 'int', 'str', 'float', 'input', 'True', 'False', 'None'],
+    js: ['console', 'true', 'false', 'null', 'undefined']
+  };
+  var NO_IO = 'Ввод с клавиатуры и окна браузера в Бастау не работают: программа выполняется отдельно от страницы. Задай значение прямо в коде, например: ';
+
+  function brackets(bare) {
+    var pairs = [['(', ')'], ['{', '}'], ['[', ']']];
+    for (var i = 0; i < pairs.length; i++) {
+      var o = bare.split(pairs[i][0]).length - 1, c = bare.split(pairs[i][1]).length - 1;
+      if (o > c) return 'Не хватает закрывающей «' + pairs[i][1] + '»: открыто ' + o + ', закрыто ' + c + '. Каждую открытую скобку нужно закрыть.';
+      if (c > o) return 'Лишняя закрывающая «' + pairs[i][1] + '»: открыто ' + o + ', закрыто ' + c + '. Убери лишнюю или добавь открывающую.';
+    }
+    return null;
+  }
+  function oddQuoteLine(code) {
+    var lines = String(code).split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i].replace(/\\./g, '');
+      if ((l.split('"').length - 1) % 2 === 1 || ((l.split("'").length - 1) % 2 === 1 && l.indexOf('"') === -1)) return i + 1;
+    }
+    return 0;
+  }
+
+  // Подсказка про неизвестное слово w
+  function nameHint(lang, w, code, bare) {
+    var py = lang !== 'js';
+    var defined = definedNames(bare, lang);
+    var pool = defined.concat(KNOWN[lang]);
+    var lines = String(code).split('\n'), bl = bare.split('\n'), i, m;
+    var wRe = w.replace(/[$]/g, '\\$');
+
+    if (!py && /^(prompt|alert|confirm|document|window|input)$/.test(w)) return (w === 'input' ? 'input — это команда Python, в JavaScript её нет. ' : '') + NO_IO + 'let name = "Аян";';
+    if (py && w === 'console') return 'console.log — это JavaScript. В Python вывод пишется так: print("текст")';
+    if (!py && w === 'print') return 'print — это Python. В JavaScript вывод пишется так: console.log("текст");';
+    if (py && /^(true|false|none|null)$/.test(w)) return 'В Python это слово пишется с большой буквы: ' + (w === 'true' ? 'True' : w === 'false' ? 'False' : 'None') + '.';
+    if (!py && /^(True|False|None)$/.test(w)) return 'В JavaScript это слово пишется с маленькой буквы: ' + (w === 'True' ? 'true' : w === 'False' ? 'false' : 'null') + '.';
+
+    // русская буква, похожая на английскую
+    if (hasCyr(w) && (hasLat(w) || pool.indexOf(latinize(w)) !== -1)) {
+      var bad = (/[Ѐ-ӿ]/.exec(w) || [''])[0];
+      return 'В слове «' + w + '» есть русская буква «' + bad + '». Она выглядит как английская' + (HOMO[bad] ? ' «' + HOMO[bad] + '»' : '') + ', но для компьютера это другой символ. Переключи раскладку на английскую и набери слово заново.';
+    }
+    for (i = 0; i < defined.length; i++) {
+      if (defined[i] !== w && hasCyr(defined[i]) && latinize(defined[i]) === w) return 'Имя «' + defined[i] + '» выше набрано с русской буквой, а здесь «' + w + '» — английскими. Выглядят одинаково, но для компьютера это разные имена. Набери оба в одной раскладке.';
+    }
+    // регистр
+    for (i = 0; i < pool.length; i++) {
+      if (pool[i] !== w && pool[i].toLowerCase() === w.toLowerCase()) return 'Большие и маленькие буквы — разные символы. У тебя «' + w + '», а нужно «' + pool[i] + '».';
+    }
+    // опечатка
+    var best = null, bd = 99;
+    pool.forEach(function (c) { var d = lev(w.toLowerCase(), c.toLowerCase()); if (d < bd) { bd = d; best = c; } });
+    if (best && bd > 0 && ((bd === 1 && w.length >= 3) || (bd === 2 && w.length >= 5))) return 'Похоже на опечатку: у тебя «' + w + '», а нужно «' + best + '». Компьютер сравнивает имена буква в букву.';
+    // name("Zhanat") — переменную создают знаком =, а не скобками
+    for (i = 0; i < bl.length; i++) {
+      if (new RegExp('^\\s*' + wRe + '\\s*\\(', 'u').test(bl[i])) {
+        m = new RegExp('^\\s*' + wRe + '\\s*\\(\\s*(.*?)\\s*\\)\\s*;?\\s*$', 'u').exec(lines[i]);
+        if (m && /^(["'].*["']|-?\d+(\.\d+)?)$/.test(m[1])) return 'Похоже, ты создаёшь переменную ' + w + '. Для этого нужен знак =, а не скобки: ' + (py ? '' : 'let ') + w + ' = ' + m[1] + (py ? '' : ';') + '. Скобки ставят только после команд, например ' + (py ? 'print(...)' : 'console.log(...)') + '.';
+      }
+      if (new RegExp('^\\s*' + wRe + '\\s*==', 'u').test(bl[i])) return 'Два знака == сравнивают, а не создают. Чтобы положить значение в ' + w + ', нужен один знак: ' + (py ? '' : 'let ') + w + ' = …';
+    }
+    return 'Компьютер не знает слово «' + w + '». Если это текст — возьми его в кавычки: "' + w + '". Если это переменная — сначала создай её выше: ' + (py ? '' : 'let ') + w + ' = …';
+  }
+
+  function diagnose(lang, code, rawError) {
+    var err = String(rawError || ''), src = String(code || '');
+    if (!err) return null;
+    if (/OutputLimit|вывела больше \d+ строк/.test(err)) return 'Цикл не может закончиться: его условие всегда верно. Проверь, что внутри цикла меняется переменная из условия, например i = i + 1.';
+    var py = lang !== 'js';
+    var bare = bareCode(src, lang), bl = bare.split('\n'), lines = src.split('\n'), m, i, b;
+    function anyLine(re) { for (var k = 0; k < bl.length; k++) if (re.test(bl[k])) return k + 1; return 0; }
+
+    // 1. неизвестное слово
+    m = py ? /NameError: name '([^']+)' is not defined/.exec(err) : /ReferenceError: (\S+) is not defined/.exec(err);
+    if (m) return nameHint(lang, m[1], src, bare);
+
+    if (py) {
+      if (/EOFError/.test(err) || (/\binput\s*\(/.test(bare) && /OSError|I\/O error/.test(err))) return NO_IO + 'name = "Аян"';
+      if (/Maybe you meant '=='/.test(err)) return 'В условии нужно сравнение — два знака ==. Один знак = кладёт значение в переменную, а не сравнивает.';
+      if (/expected ':'/.test(err)) {
+        if (anyLine(/^\s*else\s+if\b/)) return 'В Python пишут elif, а не else if.';
+        return 'В конце строки с if, elif, else, for или while нужно двоеточие «:». Оно говорит: «дальше идут команды, которые выполняются по этому условию».';
+      }
+      if (/expected an indented block/.test(err)) return 'После строки с двоеточием следующая строка должна начинаться с отступа — 4 пробела. По отступу Python понимает, какие команды «внутри» if или for.';
+      if (/unindent does not match|TabError|inconsistent use of tabs/.test(err)) return 'Отступы разной ширины. Сделай все отступы внутри одного блока одинаковыми: по 4 пробела.';
+      if (/unexpected indent/.test(err)) return 'Лишний отступ в начале строки. Отступ нужен только для команд внутри if, for или while.';
+      if (/SyntaxError|IndentationError/.test(err)) {
+        if (anyLine(/^\s*(let|const|var)\s/)) return 'let, const и var — это JavaScript. В Python переменная создаётся без них: name = "Аян"';
+        if (anyLine(/\bprint\s+["'\w]/) && /Missing parentheses/.test(err)) return 'После print нужны скобки: print("текст")';
+        if (anyLine(/[{}]/) && anyLine(/^\s*(if|else|elif|for|while)\b.*\{|^\s*\}/)) return 'Фигурные скобки { } — из JavaScript. В Python блок задаётся двоеточием и отступом:\nif x > 3:\n    print("да")';
+        if (anyLine(/&&|\|\|/)) return 'В Python условия соединяют словами: and (и), or (или), not (не). Значки && и || — из JavaScript.';
+        if (/invalid decimal literal/.test(err)) return 'Имя не может начинаться с цифры. Например, name1 вместо 1name.';
+        if (anyLine(/\brange\s+\d/)) return 'range пишется со скобками: range(3)';
+        if (anyLine(/^\s*else\b/) && !anyLine(/^\s*if\b/)) return 'else не может стоять сам по себе: перед ним должен быть if.';
+        if (/Perhaps you forgot a comma/.test(err)) return 'Между значениями в скобках нужна запятая: print(a, b). А если это текст — возьми его в кавычки.';
+        if (anyLine(new RegExp('^\\s*' + ID + '\\s+' + ID + '\\s*=(?!=)', 'u'))) return 'В имени переменной не может быть пробела. Соедини слова подчёркиванием: my_name = …';
+        if (anyLine(/\S\s+print\s*\(/) && !anyLine(/^\s*(if|elif|else|for|while)\b.*:\s*print/)) return 'Две команды на одной строке. Каждую команду пиши с новой строки.';
+        if (/unterminated string literal/.test(err)) { i = oddQuoteLine(src); return 'Не закрыта кавычка' + (i ? ' в строке ' + i : '') + '. Текст должен начинаться и заканчиваться одинаковой кавычкой: "текст".'; }
+        if (/was never closed|unmatched/.test(err)) { b = brackets(bare); if (b) return b; }
+      }
+      if (/ZeroDivisionError/.test(err)) return 'Делить на ноль нельзя. Проверь число или переменную после знака деления.';
+      if (/invalid literal for int\(\)/.test(err)) return 'int() превращает в число только текст из цифр, например int("15"). Текст с буквами числом сделать нельзя.';
+      if (/IndexError/.test(err)) return 'В списке нет элемента с таким номером. Счёт начинается с 0: у списка из трёх элементов номера 0, 1 и 2.';
+      if (/can't multiply sequence by non-int/.test(err)) return 'Текст нельзя умножить на текст. Если хочешь считать, убери кавычки вокруг чисел.';
+      if (/object is not callable/.test(err)) return 'После значения стоят скобки, будто это команда. Скобки ставят только после команд, например print(...).';
+      if (/has no len\(\)/.test(err)) return 'len() считает длину текста или списка. У числа длины нет.';
+      if (/AttributeError/.test(err)) return 'У этого значения нет такой команды после точки. Проверь написание.';
+      if (/KeyError/.test(err)) return 'В словаре нет такого ключа. Проверь написание ключа и кавычки.';
+      return null;
+    }
+
+    // JavaScript
+    m = new RegExp('\\b(let|const|var)\\s+(' + ID + ')\\s*\\(', 'u').exec(bare);
+    if (m) {
+      i = bare.slice(0, m.index).split('\n').length - 1;
+      var arg = new RegExp(m[2].replace(/[$]/g, '\\$') + '\\s*\\(\\s*(.*?)\\s*\\)', 'u').exec(lines[i] || '');
+      return 'Переменная создаётся знаком =, а не скобками. Напиши: ' + m[1] + ' ' + m[2] + ' = ' + (arg && arg[1] ? arg[1] : '…') + '; Скобки ставят только после команд, например console.log(...).';
+    }
+    if (/has already been declared/.test(err)) { m = /Identifier '([^']+)'/.exec(err); return 'Переменная ' + (m ? m[1] : '') + ' уже создана выше. let пишут один раз — при создании. Чтобы изменить значение, пиши без let: ' + (m ? m[1] : 'x') + ' = …;'; }
+    if (/Assignment to constant variable/.test(err)) return 'const — это значение, которое нельзя менять. Если его нужно менять, создай переменную через let.';
+    if (/before initialization/.test(err)) { m = /access '([^']+)'/.exec(err); return 'Переменная ' + (m ? m[1] : '') + ' используется раньше, чем создана. Перенеси строку с let выше.'; }
+    m = /TypeError: (\S+) is not a function/.exec(err);
+    if (m) {
+      if (/^console\./i.test(m[1])) return 'Команда вывода пишется так: console.log — все буквы маленькие. У тебя «' + m[1] + '».';
+      return 'После «' + m[1] + '» стоят скобки, будто это команда, но это не команда. Скобки ставят только после команд, например console.log(...).';
+    }
+    m = /Cannot read properties of (undefined|null) \(reading '([^']+)'\)/.exec(err);
+    if (m) return 'Ты пишешь «.' + m[2] + '» после переменной, в которой ещё ничего нет. Проверь, что выше в неё положили значение.';
+    if (/SyntaxError/.test(err)) {
+      if (anyLine(/\b(let|const|var)\s+\d/)) return 'Имя не может начинаться с цифры. Например, name1 вместо 1name.';
+      if (anyLine(new RegExp('\\b(let|const|var)\\s+' + ID + '\\s+' + ID + '\\s*=', 'u'))) return 'В имени переменной не может быть пробела. Пиши слитно: myName.';
+      if (anyLine(/\belif\b/)) return 'В JavaScript пишут else if, а не elif.';
+      if (anyLine(/^\s*(if|while|for)\s+[^(\s]/)) return 'В JavaScript условие пишут в круглых скобках, а команды — в фигурных:\nif (x > 3) {\n  console.log("да");\n}';
+      if (anyLine(/\b(and|or|not)\b/)) return 'В JavaScript условия соединяют значками: && (и), || (или), ! (не). Слова and и or — из Python.';
+      if (anyLine(/^\s*(if|else|for|while)\b.*:\s*$/)) return 'Двоеточие в конце — из Python. В JavaScript команды блока пишут в фигурных скобках:\nif (x > 3) {\n  console.log("да");\n}';
+      if (anyLine(/\bconsole\.log\s+["'`\w]/)) return 'После console.log нужны скобки: console.log("текст");';
+      if (/Invalid or unexpected token/.test(err)) { i = oddQuoteLine(src); if (i) return 'Не закрыта кавычка в строке ' + i + '. Текст должен начинаться и заканчиваться одинаковой кавычкой: "текст".'; }
+      b = brackets(bare);
+      if (b) return b;
+      if (/Unexpected identifier/.test(err) && anyLine(/[^;{}\s]\s+(console\.log|let|const|var)\b/)) return 'Две команды на одной строке. Каждую команду пиши с новой строки и заканчивай точкой с запятой.';
+    }
+    return null;
+  }
 
   /* ---------- подсветка кода (HTML-экранирование обязательно: код пользователя) ---------- */
   function esc(s) {
@@ -291,7 +499,7 @@
     newCard: newCard, schedule: schedule, dueCards: dueCards, cardStats: cardStats, shuffle: shuffle,
     streak: streak, weekStrip: weekStrip,
     normOut: normOut, checkOutput: checkOutput, fillCheck: fillCheck, parsonsCheck: parsonsCheck, fixCurly: fixCurly,
-    explainError: explainError, esc: esc, highlight: highlight,
+    explainError: explainError, diagnose: diagnose, friendlyError: friendlyError, bareCode: bareCode, esc: esc, highlight: highlight,
     icsDaily: icsDaily, validateState: validateState
   };
 });

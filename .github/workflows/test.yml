@@ -8,6 +8,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node --test tests/core.test.js tests/examples.test.js tests/course.test.js
+      - run: node --test tests/core.test.js tests/examples.test.js tests/course.test.js tests/diagnose.test.js
       - name: Syntax check
         run: for f in js/*.js sw.js; do node --check "$f"; done

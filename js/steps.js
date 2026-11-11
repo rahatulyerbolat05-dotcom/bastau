@@ -27,8 +27,18 @@
       out.appendChild(h('span', { class: 'spin', 'aria-hidden': 'true' }));
       out.appendChild(document.createTextNode(cold && lang === 'py' ? ' Готовим Python… Первый запуск занимает несколько секунд.' : ' Выполняю…'));
     }
-    function show(r) {
+    // подсказка может содержать пример кода со второй строки
+    function friendlyNode(text) {
+      var parts = String(text).split('\n');
+      return h('div', { class: 'con-friendly' }, h('b', { text: 'Что исправить: ' }), parts[0],
+        parts.length > 1 ? h('pre', { class: 'hint-code', text: parts.slice(1).join('\n') }) : null);
+    }
+    function show(r, code) {
       var text = (r.out || '').replace(/\n+$/, '');
+      var all = text.split('\n');
+      // длинный вывод показываем не целиком; у оборванного цикла — совсем коротко, чтобы подсказка была на виду
+      var keep = /вывела больше \d+ строк/.test(r.error || '') ? 8 : 30;
+      if (all.length > keep + 10) text = all.slice(0, keep).join('\n') + '\n… и ещё строк: ' + (all.length - keep);
       err.textContent = ''; err.hidden = true;
       if (text) { out.className = 'con-out'; out.textContent = text; }
       else { out.className = 'con-out muted'; out.textContent = r.ok ? '(программа ничего не вывела)' : ''; }
@@ -36,8 +46,11 @@
       if (r.error) {
         err.hidden = false;
         err.appendChild(h('pre', { class: 'con-raw', text: r.error }));
-        var friendly = r.loadError ? null : Core.explainError(lang, r.error);
-        if (friendly) err.appendChild(h('div', { class: 'con-friendly' }, h('b', { text: 'Что это значит: ' }), friendly));
+        var friendly = r.loadError ? null : (r.timedOut
+          ? 'Скорее всего, цикл не может закончиться: его условие всегда верно. Проверь, что внутри цикла меняется переменная из условия.'
+          : Core.friendlyError(lang, code || '', r.error));
+        r.friendly = friendly;
+        if (friendly) err.appendChild(friendlyNode(friendly));
         var m = /line (\d+)/.exec(r.error);
         if (m) line = parseInt(m[1], 10);
       }
@@ -50,7 +63,7 @@
   function execute(lang, code, con) {
     con.running();
     return window.Runner.run(lang, code).then(function (r) {
-      var line = con.show(r);
+      var line = con.show(r, code);
       r.errorLine = line;
       return r;
     });
@@ -212,8 +225,8 @@
     var items = Core.shuffle(step.tokens.map(function (t, i) { return { id: i, text: t }; }));
     var answer = [];
     var fails = 0;
-    var ansEl = h('div', { class: 'pz-answer', 'aria-label': 'Твоя программа', role: 'list' });
-    var bankEl = h('div', { class: 'pz-bank', 'aria-label': 'Доступные блоки', role: 'list' });
+    var ansEl = h('div', { class: 'pz-answer' + (step.lines ? ' pz-lines' : ''), 'aria-label': 'Твоя программа', role: 'list' });
+    var bankEl = h('div', { class: 'pz-bank' + (step.lines ? ' pz-lines' : ''), 'aria-label': 'Доступные блоки', role: 'list' });
     function tokBtn(it, inAnswer) {
       return h('button', {
         type: 'button', class: 'tok' + (inAnswer ? ' placed' : ''), role: 'listitem', text: it.text,
@@ -351,7 +364,7 @@
           api.banner({ kind: 'info', title: 'Не удалось запустить', text: 'Python загружается из интернета при первом запуске. Проверь соединение и повтори — или переключись на JavaScript в «Прогресс → Настройки» (он работает офлайн).' });
         } else if (r.error) {
           if (!untouched) tries++;
-          api.banner({ kind: untouched ? 'info' : 'bad', title: untouched ? 'Вот она, ошибка' : 'Есть ошибка', text: untouched ? 'Прочитай сообщение в «Выводе»: внизу — суть, выше — место. Теперь исправь код.' : 'Программа не запустилась. Прочитай сообщение в «Выводе» — оно подскажет место и причину.' });
+          api.banner({ kind: untouched ? 'info' : 'bad', title: untouched ? 'Вот она, ошибка' : 'Есть ошибка', text: untouched ? 'Прочитай сообщение в «Выводе»: внизу — суть, выше — место. Теперь исправь код.' : (step.mode !== 'debug' && r.friendly ? r.friendly.split('\n')[0] : 'Программа не запустилась. В блоке «Вывод» написано, что исправить.') });
         } else {
           var v = step.validate ? step.validate(r.out, code) : window.Core.checkOutput(r.out, step.expect);
           if (v.ok) { return success(r); }
@@ -547,6 +560,15 @@
       var fn = KINDS[step.kind];
       if (!fn) throw new Error('Неизвестный тип шага: ' + step.kind);
       fn(step, body, api);
+      // второе, более простое объяснение — по желанию (в повторении не показываем: там нужно вспоминать)
+      if (step.simple && !api.review) {
+        var sm = typeof step.simple === 'string' ? { text: step.simple } : step.simple;
+        body.appendChild(h('details', { class: 'simple' },
+          h('summary', null, icon('bulb', 18), h('span', { text: 'Не понял? Объясню проще' })),
+          h('p', { text: sm.text }),
+          sm.code ? codeBlock(sm.code, api.lang) : null,
+          sm.after ? h('p', { text: sm.after }) : null));
+      }
     },
     consoleView: consoleView, execute: execute, codeBlock: codeBlock
   };

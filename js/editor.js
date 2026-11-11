@@ -4,8 +4,8 @@
   var h = window.UI.h;
 
   var SYMBOLS = {
-    py: ['"', "'", '(', ')', '[', ']', ':', '#', '=', '+', ',', '.'],
-    js: ['"', "'", '(', ')', '{', '}', '[', ']', ';', '.', '=', '+']
+    py: ['"', "'", '(', ')', ':', '=', '<', '>', '+', '-', ',', '[', ']', '#', '.'],
+    js: ['"', "'", '(', ')', '{', '}', ';', '=', '<', '>', '+', '-', ',', '[', ']', '.']
   };
 
   function createEditor(opts) {
@@ -36,9 +36,39 @@
       for (var i = 1; i <= n; i++) out += '<span' + (i === errLine ? ' class="err"' : '') + '>' + i + '</span>';
       gutter.innerHTML = out;
     }
-    ta.addEventListener('input', function () { errLine = 0; render(); if (opts.onChange) opts.onChange(ta.value); });
+    var INDENT = lang === 'py' ? '    ' : '  ';
+    // отступ для новой строки: как у текущей, плюс один уровень после «:» (Python) или «{» (JavaScript)
+    function nextIndent(before) {
+      var line = before.slice(before.lastIndexOf('\n') + 1);
+      var ind = (/^[ \t]*/.exec(line) || [''])[0];
+      var opens = lang === 'py' ? /:\s*(#.*)?$/.test(line) : /[{(\[]\s*$/.test(line);
+      return ind + (opens ? INDENT : '');
+    }
+    ta.addEventListener('input', function (e) {
+      // телефонные клавиатуры не всегда шлют keydown для Enter — добавляем отступ после вставки переноса
+      if (e && e.inputType === 'insertLineBreak' && ta.selectionStart === ta.selectionEnd) {
+        var pos = ta.selectionStart, ind = nextIndent(ta.value.slice(0, pos - 1));
+        if (ind && ta.value[pos - 1] === '\n') ta.setRangeText(ind, pos, pos, 'end');
+      }
+      errLine = 0; render(); if (opts.onChange) opts.onChange(ta.value);
+    });
     ta.addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (opts.onRun) opts.onRun(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (opts.onRun) opts.onRun(); return; }
+      if (ta.readOnly || e.isComposing) return;
+      if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        insert('\n' + nextIndent(ta.value.slice(0, ta.selectionStart)));
+        return;
+      }
+      // Backspace в отступе убирает целый уровень
+      if (e.key === 'Backspace' && ta.selectionStart === ta.selectionEnd) {
+        var s0 = ta.selectionStart, line = ta.value.slice(ta.value.lastIndexOf('\n', s0 - 1) + 1, s0);
+        if (line.length >= INDENT.length && /^ +$/.test(line) && line.length % INDENT.length === 0) {
+          e.preventDefault();
+          ta.setRangeText('', s0 - INDENT.length, s0, 'end');
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
     });
 
     function insert(ch) {
@@ -49,7 +79,12 @@
     }
 
     if (!ro && opts.symbols !== false) {
-      keys = h('div', { class: 'ed-keys', role: 'toolbar', 'aria-label': 'Быстрые символы' }, SYMBOLS[lang].map(function (ch) {
+      var indentKey = h('button', {
+        type: 'button', class: 'key key-wide', 'aria-label': 'Вставить отступ', text: '⇥ отступ',
+        onpointerdown: function (e) { e.preventDefault(); insert(INDENT); },
+        onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); insert(INDENT); } }
+      });
+      keys = h('div', { class: 'ed-keys', role: 'toolbar', 'aria-label': 'Быстрые символы' }, indentKey, SYMBOLS[lang].map(function (ch) {
         return h('button', {
           type: 'button', class: 'key', 'aria-label': 'Вставить ' + ch, text: ch,
           // pointerdown + preventDefault: клавиатура и фокус остаются на месте

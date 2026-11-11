@@ -3,7 +3,7 @@
   'use strict';
   var TIMEOUT_MS = 5000;
   var BOOT_LIMIT_MS = 180000;
-  var URLS = { py: 'js/py-worker.js', js: 'js/js-worker.js' };
+  var URLS = { py: 'js/py-worker.js?v=18', js: 'js/js-worker.js?v=18' }; // версия — как в index.html и sw.js
   var workers = { py: null, js: null };
   var status = { py: 'idle', js: 'idle' };
   var booting = { py: null, js: null };

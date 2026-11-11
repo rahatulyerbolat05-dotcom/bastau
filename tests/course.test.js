@@ -19,8 +19,12 @@ function findPython() {
 const PY = findPython();
 
 function runJs(code) {
-  let out = '';
-  const log = (...a) => { out += a.map(x => (typeof x === 'string' ? x : String(x))).join(' ') + '\n'; };
+  let out = '', lines = 0;
+  // тот же предел вывода, что в js/js-worker.js: бесконечный цикл с печатью обрывается, а не вешает тест
+  const log = (...a) => {
+    out += a.map(x => (typeof x === 'string' ? x : String(x))).join(' ') + '\n';
+    if (++lines > 2000) { const e = new Error('слишком много вывода'); e.name = 'Остановлено'; throw e; }
+  };
   try { new Function('console', code)({ log, info: log, warn: log, error: log }); return { ok: true, out }; }
   catch (e) { return { ok: false, out, error: e.name + ': ' + e.message }; }
 }
@@ -39,7 +43,7 @@ function verdict(step, r, code) {
 const LANGS = ['py', 'js'];
 
 test('уроки: id шагов уникальны, карточки существуют и не пересекаются между уроками', () => {
-  assert.ok(Course.LESSONS.length >= 2);
+  assert.ok(Course.LESSONS.length >= 4);
   const seenCards = new Set();
   for (const lang of LANGS) {
     seenCards.clear();
@@ -152,6 +156,56 @@ for (const lang of LANGS) {
       assert.equal(Core.normOut(r.out), Core.normOut(s.expected), s.id + ': ожидание не совпало с реальным выводом');
       assert.equal(s.options.filter(o => o.correct).length, 1);
     });
+  });
+}
+
+for (const lang of LANGS) {
+  test('вопросы с кодом (' + lang + '): заявленный вывод совпадает с реальным, предсказания тоже', { skip: lang === 'py' && !PY ? 'нет python' : false }, () => {
+    for (const l of Course.LESSONS) {
+      const c = Course.build(lang, l.id);
+      Object.values(c.cards).filter(d => d.kind === 'mcq' && d.out !== undefined).forEach(q => {
+        const r = run(lang, q.code);
+        assert.equal(r.ok, true, l.id + '/' + q.card + ': код вопроса падает: ' + r.error);
+        assert.equal(Core.normOut(r.out), Core.normOut(q.out), l.id + '/' + q.card);
+      });
+      c.steps.filter(s => s.kind === 'predict').forEach(s => {
+        const r = run(lang, s.code);
+        assert.equal(r.ok, true, l.id + '/' + s.id);
+        assert.equal(Core.normOut(r.out), Core.normOut(s.expected), l.id + '/' + s.id + ': ожидание не совпало с реальным выводом');
+      });
+      // во вступлении показан «экран» — он тоже должен быть правдой
+      c.steps.filter(s => s.kind === 'intro').forEach(s => {
+        assert.equal(Core.normOut(run(lang, s.flow.code).out), Core.normOut(s.flow.out), l.id + '/intro');
+      });
+    }
+  });
+
+  test('дни 3–4 (' + lang + '): обходные решения не засчитываются', { skip: lang === 'py' && !PY ? 'нет python' : false }, () => {
+    const py = lang === 'py';
+    const out = py ? 'print' : 'console.log', end = py ? '' : ';';
+    const p = t => out + '(' + t + ')' + end;
+    const check = (lessonId, stepId, code, want) => {
+      const s = Course.build(lang, lessonId).steps.find(x => x.id === stepId);
+      assert.equal(verdict(s, run(lang, code), code).ok, want, lessonId + '/' + stepId + ':\n' + code);
+    };
+    // условия: просто вывести ответ нельзя
+    check('cond', 'make1', p('"Жарко"'), false);
+    check('cond', 'make2', p('"Вход разрешён"'), false);
+    check('cond', 'modify', p('"Можно"'), false);
+    check('cond', 'debug2', p('"Скидка"'), false);
+    // условие исправлено, но цена изменена — не то, что просили
+    check('cond', 'debug2', py ? 'price = 500\nif price < 1000:\n    print("Скидка")\nelse:\n    print("Без скидки")'
+      : 'let price = 500;\nif (price < 1000) {\n  console.log("Скидка");\n} else {\n  console.log("Без скидки");\n}', false);
+    // циклы: несколько команд вывода подряд вместо цикла
+    check('loops', 'make1', [1, 2, 3, 4].map(n => p(n)).join('\n'), false);
+    check('loops', 'make2', [3, 2, 1].map(n => p(n)).join('\n') + '\n' + p('"Пуск!"'), false);
+    check('loops', 'modify', [1, 2, 3, 4, 5].map(n => p(n)).join('\n'), false);
+    // другой верный способ с циклом засчитывается
+    check('loops', 'make1', py ? 'n = 0\nwhile n < 4:\n    n = n + 1\n    print(n)' : 'let n = 0;\nwhile (n < 4) {\n  n = n + 1;\n  console.log(n);\n}', true);
+    check('loops', 'debug2', py ? 'i = 1\nwhile i < 6:\n    print(i)\n    i = i + 1' : 'let i = 1;\nwhile (i < 6) {\n  console.log(i);\n  i = i + 1;\n}', true);
+    // бесконечный цикл из задания действительно не проходит и обрывается
+    const inf = Course.build(lang, 'loops').steps.find(x => x.id === 'debug1');
+    assert.equal(run(lang, inf.starter).ok, false);
   });
 }
 
