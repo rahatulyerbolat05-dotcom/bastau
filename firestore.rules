@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Единственная коллекция: progress/{uid} — один документ на аккаунт.
+    //   v    версия формата (1)
+    //   data прогресс целиком, JSON-строкой (см. js/cloud.js); проверяется клиентом через Core.validateState
+    //   u    метка времени записи, мс (до 2100 года)
+    //   d    идентификатор устройства
+    // Читать и менять документ может только его владелец. Всё остальное запрещено (нет других match).
+    match /progress/{uid} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+      function valid(d) {
+        return d.keys().hasOnly(['v', 'data', 'u', 'd'])
+          && d.keys().hasAll(['v', 'data', 'u', 'd'])
+          && d.v == 1
+          && d.data is string && d.data.size() <= 300000
+          && d.u is number && d.u > 0 && d.u <= 4102444800000
+          && d.d is string && d.d.size() <= 64;
+      }
+      allow read, delete: if isOwner();
+      allow create, update: if isOwner() && valid(request.resource.data);
+    }
+  }
+}
