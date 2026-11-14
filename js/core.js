@@ -127,9 +127,14 @@
   }
 
   function fillCheck(value, accepts) {
-    var v = String(value == null ? '' : value).trim();
+    var raw = String(value == null ? '' : value).trim();
+    var v = fixCurly(raw).code; // «умные» кавычки телефон подставляет сам — не наказываем за них
     var list = Array.isArray(accepts) ? accepts : [accepts];
     for (var i = 0; i < list.length; i++) if (v === list[i]) return { ok: true };
+    if (/[«»]/.test(raw)) return { ok: false, code: 'quotes', msg: 'В коде нужны прямые кавычки "…", а не «ёлочки». Переключи раскладку на английскую и поставь кавычки заново.' };
+    for (var k = 0; k < list.length; k++) {
+      if (hasCyr(v) && latinize(v) === list[k]) return { ok: false, code: 'layout', msg: 'Сюда попала русская буква. Она выглядит как английская, но для компьютера это другой символ. Переключи раскладку на английскую и набери заново.' };
+    }
     for (var j = 0; j < list.length; j++) {
       if (v.toLowerCase() === String(list[j]).toLowerCase()) return { ok: false, code: 'case', msg: 'Проверь регистр: заглавные и строчные буквы — разные символы.' };
     }

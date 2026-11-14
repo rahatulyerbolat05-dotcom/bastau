@@ -99,12 +99,15 @@
     var bannerBox = h('div', { class: 'banner-box', 'aria-live': 'polite' });
     var secondary = h('button', { class: 'btn ghost', type: 'button', hidden: true });
     var primary = h('button', { class: 'btn primary', type: 'button' });
+    // почему главная кнопка серая — чтобы человек не гадал, что от него нужно
+    var hintEl = h('div', { class: 'p-hint', hidden: true, 'aria-live': 'polite' });
+    var skipBtn = h('button', { class: 'p-skip', type: 'button', hidden: true }, 'Не получается? Пропустить шаг');
     var el = h('div', { class: 'player', role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title },
       h('header', { class: 'p-top' }, closeBtn,
         h('div', { class: 'p-prog', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0', 'aria-label': 'Прогресс' }, h('div', { class: 'p-track' }, progressFill), progressText),
         infoBtn),
       body,
-      h('footer', { class: 'p-foot' }, bannerBox, h('div', { class: 'p-actions' }, secondary, primary)));
+      h('footer', { class: 'p-foot' }, bannerBox, hintEl, h('div', { class: 'p-actions' }, secondary, primary), skipBtn));
     overlayRoot.appendChild(el);
     document.body.classList.add('has-player');
     try { history.pushState({ player: true }, ''); pushed = true; } catch (e) { pushed = false; }
@@ -136,8 +139,11 @@
         primary.disabled = !!o.disabled;
         primary.className = 'btn ' + (o.kind || 'primary');
         primary.onclick = o.disabled ? null : o.onClick;
+        hintEl.textContent = o.disabled && o.hint ? o.hint : '';
+        hintEl.hidden = !(o.disabled && o.hint);
         if (o.focus) primary.focus({ preventScroll: true });
       },
+      setSkip: function (fn) { skipBtn.hidden = !fn; skipBtn.onclick = fn || null; },
       setSecondary: function (o) {
         clear(secondary);
         if (!o) { secondary.hidden = true; secondary.onclick = null; return; }
@@ -204,16 +210,33 @@
 
     function mountCurrent() {
       var step = steps[idx], t0 = Date.now(), finished = false;
-      shell.runCleanups(); clear(shell.body); shell.clearBanner(); shell.setSecondary(null);
+      shell.runCleanups(); clear(shell.body); shell.clearBanner(); shell.setSecondary(null); shell.setSkip(null);
+      // запасной выход: ни на одном шаге нельзя застрять навсегда
+      function skipStep() {
+        if (finished) return; finished = true;
+        L.results[step.id] = { correct: false, skipped: true, ms: Date.now() - t0 };
+        if (L.doneSteps.indexOf(step.id) === -1) L.doneSteps.push(step.id);
+        if (step.card) S.ensureCard(cardKey(lang, step.card));
+        (step.questions || []).forEach(function (q) { if (q.card) S.ensureCard(cardKey(lang, q.card)); });
+        S.touchDay(); S.save();
+        toast('Шаг пропущен. Он вернётся в повторении.');
+        next();
+      }
+      function offerSkip() { if (!finished && step.kind !== 'done') shell.setSkip(skipStep); }
+      if (step.kind !== 'done' && step.kind !== 'intro') {
+        var skipTimer = setTimeout(offerSkip, 45000);
+        shell.addCleanup(function () { clearTimeout(skipTimer); });
+      }
       shell.setProgress(idx, steps.length);
       shell.setInfo(step.why ? function () { openWhy(step.why); } : null);
       var api = {
         lang: lang, review: false,
         setPrimary: shell.setPrimary, setSecondary: shell.setSecondary, banner: shell.banner, clearBanner: shell.clearBanner,
-        cleanup: shell.addCleanup, summary: summary, confetti: confetti,
+        cleanup: shell.addCleanup, summary: summary, confetti: confetti, offerSkip: offerSkip,
         openExamples: function () { shell.close(); setTimeout(function () { go('examples'); }, 350); },
         finish: function (result, o) {
           if (finished) return; finished = true;
+          shell.setSkip(null);
           result.ms = Date.now() - t0;
           L.results[step.id] = result;
           if (L.doneSteps.indexOf(step.id) === -1) L.doneSteps.push(step.id);
@@ -256,7 +279,7 @@
       var api = {
         lang: lang, review: true,
         setPrimary: shell.setPrimary, setSecondary: shell.setSecondary, banner: shell.banner, clearBanner: shell.clearBanner,
-        cleanup: shell.addCleanup, summary: function () { return {}; }, confetti: function () { },
+        cleanup: shell.addCleanup, summary: function () { return {}; }, confetti: function () { }, offerSkip: function () { },
         finish: function (result) {
           if (finished) return; finished = true;
           var outcome = !result.correct ? 'again' : (result.conf && result.conf !== 'sure' ? 'hard' : 'good');

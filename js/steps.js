@@ -69,6 +69,18 @@
     });
   }
 
+  // показать только что появившийся элемент: он не должен остаться за нижним краем экрана
+  function reveal(el) {
+    function go(behavior) { try { el.scrollIntoView({ block: 'nearest', behavior: behavior }); } catch (e) { /* старый браузер */ } }
+    function hiddenBelow() {
+      var box = el.closest('.p-body'); if (!box) return false;
+      return el.getBoundingClientRect().bottom > box.getBoundingClientRect().bottom + 1;
+    }
+    setTimeout(function () { go(window.UI.reduceMotion.matches ? 'auto' : 'smooth'); }, 30);
+    // плавная прокрутка может не сработать (фоновая вкладка, прерывание) — тогда прокручиваем сразу
+    setTimeout(function () { if (hiddenBelow()) go('auto'); }, 450);
+  }
+
   function confidenceRow(onChange) {
     var value = null;
     var opts = [['sure', 'Уверен'], ['maybe', 'Скорее да'], ['guess', 'Угадываю']];
@@ -140,7 +152,7 @@
     var con = consoleView(api.lang);
     var confRow = confidenceRow(function (v) { conf = v; sync(); });
     confRow.el.hidden = true;
-    var list = optionList(opts, function (i) { chosen = opts[i]; confRow.el.hidden = !!chosen.dk; if (chosen.dk) conf = null; sync(); });
+    var list = optionList(opts, function (i) { chosen = opts[i]; confRow.el.hidden = !!chosen.dk; if (chosen.dk) conf = null; else reveal(confRow.el); sync(); });
     var conBox = h('div', { hidden: true }, con.el);
     body.appendChild(h('div', { class: 'predict' },
       h('h1', { class: 'step-title', text: step.title }),
@@ -151,12 +163,13 @@
     function sync() {
       if (phase !== 'choose') return;
       var ready = chosen && (chosen.dk || conf);
-      api.setPrimary({ label: 'Зафиксировать ответ', disabled: !ready, onClick: lock });
+      api.setPrimary({ label: 'Зафиксировать ответ', disabled: !ready, onClick: lock, hint: !chosen ? 'Сначала выбери вариант ответа.' : 'Теперь отметь, насколько ты уверен, — три кнопки под вариантами.' });
     }
     function lock() {
       phase = 'run'; confRow.lock();
       conBox.hidden = false;
       con.idle('Теперь запусти код и проверь себя.');
+      reveal(conBox);
       api.setPrimary({ label: 'Запустить', icon: 'play', onClick: go });
     }
     function go() {
@@ -208,7 +221,7 @@
       if (Object.keys(seen).length === keys.length) {
         summary.hidden = false;
         api.setPrimary({ label: 'Дальше', onClick: function () { api.finish({ correct: true }, { advance: true }); } });
-      }
+      } else lockedNext();
     }
     body.appendChild(h('div', { class: 'anatomy' },
       h('h1', { class: 'step-title', text: step.title }),
@@ -216,8 +229,12 @@
       h('div', { class: 'anat-code', role: 'group', 'aria-label': 'Части кода' }, buttons),
       h('div', { class: 'anat-card', 'aria-live': 'polite' }, panelRole, panelDesc),
       progress, summary));
+    function lockedNext() {
+      var left = keys.length - Object.keys(seen).length;
+      api.setPrimary({ label: 'Дальше', disabled: true, onClick: function () { }, hint: 'Нажми на каждую часть кода в рамке. Осталось частей: ' + left + '.' });
+    }
     updateProgress();
-    api.setPrimary({ label: 'Дальше', disabled: true, onClick: function () { } });
+    lockedNext();
   }
 
   /* ---------- parsons ---------- */
@@ -239,7 +256,7 @@
       if (!answer.length) ansEl.appendChild(h('span', { class: 'pz-empty', text: 'Нажимай на блоки ниже' }));
       answer.forEach(function (it) { ansEl.appendChild(tokBtn(it, true)); });
       items.filter(function (it) { return !answer.some(function (a) { return a.id === it.id; }); }).forEach(function (it) { bankEl.appendChild(tokBtn(it, false)); });
-      api.setPrimary({ label: 'Проверить', disabled: !answer.length, onClick: check });
+      api.setPrimary({ label: 'Проверить', disabled: !answer.length, onClick: check, hint: 'Нажимай на блоки ниже, чтобы собрать программу.' });
     }
     function check() {
       var texts = answer.map(function (a) { return a.text; });
@@ -256,7 +273,17 @@
       var tip = null;
       Object.keys(step.tipIf || {}).forEach(function (k) { if (texts.indexOf(k) !== -1) tip = step.tipIf[k]; });
       api.banner({ kind: 'bad', title: 'Пока не то', text: tip || (step.failMsg ? step.failMsg(r) : r.msg) });
-      if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: step.hint }); } });
+      if (fails >= 3) api.setSecondary({ label: 'Показать решение', onClick: showSolution });
+      else if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: step.hint }); } });
+      if (fails >= 3) api.offerSkip();
+    }
+    function showSolution() {
+      answer = step.solutions[0].map(function (t) { return items.filter(function (it) { return it.text === t; })[0]; });
+      draw();
+      ansEl.classList.add('ok');
+      api.setSecondary(null);
+      api.banner({ kind: 'info', title: 'Вот решение', text: 'Прочитай строки сверху вниз и проверь, что понимаешь порядок. ' + (step.okText || '') });
+      api.finish({ correct: false, tries: fails, revealed: true });
     }
     body.appendChild(h('div', { class: 'parsons' },
       h('h1', { class: 'step-title', text: step.title }),
@@ -297,7 +324,15 @@
       } else {
         fails++;
         api.banner({ kind: 'bad', title: 'Есть ошибка', text: firstMsg });
-        if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: step.hintText || 'Первый пропуск — команда вывода. Два других — кавычки: одна открывает текст, другая закрывает.' }); } });
+        if (fails >= 3) {
+          api.setSecondary({ label: 'Показать ответ', onClick: function () {
+            inputs.forEach(function (x) { x.el.value = x.spec.accept[0]; x.el.disabled = true; x.el.classList.remove('bad'); x.el.classList.add('ok'); });
+            api.setSecondary(null);
+            api.banner({ kind: 'info', title: 'Вот ответ', text: (step.okText || 'Посмотри, что стоит в каждом пропуске.') + ' Это задание вернётся в повторении.' });
+            api.finish({ correct: false, tries: fails, revealed: true });
+          } });
+          api.offerSkip();
+        } else if (fails >= 2) api.setSecondary({ label: 'Подсказка', onClick: function () { api.banner({ kind: 'info', title: 'Подсказка', text: step.hintText || 'Первый пропуск — команда вывода. Два других — кавычки: одна открывает текст, другая закрывает.' }); } });
       }
     }
     api.setPrimary({ label: 'Проверить', onClick: check });
@@ -373,6 +408,7 @@
         }
         api.setPrimary({ label: 'Запустить', icon: 'play', onClick: run });
         updateSecondary();
+        if (tries >= 3) api.offerSkip();
       });
     }
     function success() {
@@ -396,13 +432,13 @@
     var conf = null, picked = null, answered = false;
     var confRow = confidenceRow(function (v) { conf = v; sync(); });
     confRow.el.hidden = true;
-    var list = optionList(opts, function (i) { picked = opts[i]; confRow.el.hidden = false; sync(); });
+    var list = optionList(opts, function (i) { picked = opts[i]; confRow.el.hidden = false; reveal(confRow.el); sync(); });
     container.appendChild(h('div', { class: 'mcq' },
       h('p', { class: 'lead', text: q.q }),
       q.code ? codeBlock(q.code, api.lang) : null, list.el, confRow.el));
     function sync() {
       if (answered) return;
-      api.setPrimary({ label: 'Ответить', disabled: !(picked && conf), onClick: answer });
+      api.setPrimary({ label: 'Ответить', disabled: !(picked && conf), onClick: answer, hint: !picked ? 'Сначала выбери вариант ответа.' : 'Теперь отметь, насколько ты уверен, — три кнопки под вариантами.' });
     }
     function answer() {
       answered = true;
@@ -462,7 +498,7 @@
     ta.addEventListener('input', function () {
       var n = ta.value.trim().length;
       count.textContent = n + ' / ' + step.min;
-      api.setPrimary({ label: 'Сравнить с эталоном', disabled: n < step.min, onClick: compare });
+      api.setPrimary({ label: 'Сравнить с эталоном', disabled: n < step.min, onClick: compare, hint: 'Напиши объяснение своими словами. Ещё символов: ' + Math.max(0, step.min - n) + '.' });
     });
     function compare() {
       ta.readOnly = true;
@@ -484,9 +520,10 @@
         }));
       });
       rate.appendChild(row);
-      api.setPrimary({ label: 'Дальше', disabled: true, onClick: function () { } });
+      api.setPrimary({ label: 'Дальше', disabled: true, onClick: function () { }, hint: 'Отметь, насколько эталон совпал с твоим объяснением, — три кнопки под ним.' });
+      reveal(rate);
     }
-    api.setPrimary({ label: 'Сравнить с эталоном', disabled: true, onClick: compare });
+    api.setPrimary({ label: 'Сравнить с эталоном', disabled: true, onClick: compare, hint: 'Напиши объяснение своими словами. Ещё символов: ' + step.min + '.' });
     setTimeout(function () { ta.focus(); }, 80);
   }
 
