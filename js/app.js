@@ -181,6 +181,7 @@
         openShell = null;
         S.flush();
         if (shell.onClose) shell.onClose();
+        if (window.Account) window.Account.kick(); // урок закрыт — можно обменяться с облаком
       }
     };
     openShell = shell;
@@ -194,7 +195,7 @@
     id = id || currentLessonId(lang) || 'hello';
     var c = course(lang, id);
     var L = S.lesson(lessonKey(lang, id));
-    if (restart) { L.doneSteps = []; L.done = false; L.skipped = false; L.results = {}; }
+    if (restart) { L.doneSteps = []; L.done = false; L.skipped = false; L.results = {}; L.rev = Date.now(); } // rev: «пройти заново» новее прошлого прохождения на любом устройстве
     if (!L.startedAt) L.startedAt = Date.now();
     var steps = visibleSteps(c);
     if (lang === 'py') R.preload('py');
@@ -390,6 +391,10 @@
     clear(main).appendChild(h('div', { class: 'page' },
       h('header', { class: 'large-title' }, h('div', null, h('div', { class: 'overline', text: cap(fmtDate(Date.now(), { weekday: 'long', day: 'numeric', month: 'long' })) }), h('h1', { text: 'Сегодня' })), streakBtn),
       hero, reviewCard,
+      A && A.state().status === 'out' && C.hasProgress(st) ? h('button', { class: 'card tap', onclick: function () { go('progress'); } },
+        h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('user', 22)),
+          h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Сохрани прогресс в аккаунте' }), h('div', { class: 'row-s', text: 'Сейчас он хранится только на этом устройстве' })),
+          icon('chevron', 18))) : null,
       exData().length ? h('button', { class: 'card tap', onclick: function () { go('examples'); } },
         h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('code', 22)),
           h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Примеры из твоих программ' }), h('div', { class: 'row-s', text: 'Где живут строки, функции и условия в настоящих проектах' })),
@@ -606,6 +611,7 @@
 
     clear(main).appendChild(h('div', { class: 'page' },
       h('header', { class: 'large-title' }, h('div', null, h('h1', { text: 'Прогресс' }))),
+      accountCard(),
       h('div', { class: 'tiles' },
         tile(String(sk.count), plural(sk.count, ['день', 'дня', 'дней']) + ' в серии'),
         tile(String(Math.round(S.minutesWeek())), 'мин за 7 дней'),
@@ -616,18 +622,77 @@
       h('section', { class: 'group' }, whyRows),
       h('h2', { class: 'section-h', text: 'Настройки' }),
       h('section', { class: 'card' },
-        segSetting('Язык урока', st.lang, [['py', 'Python'], ['js', 'JavaScript']], function (v) { st.lang = v; S.save(); if (v === 'py') R.preload('py'); renderProgress(); }),
-        segSetting('Мой опыт', st.level || 'new', [['new', 'Новичок'], ['some', 'Немного'], ['pro', 'Уверенно']], function (v) { st.level = v; S.save(); renderProgress(); }),
-        segSetting('Тема', st.theme, [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']], function (v) { st.theme = v; S.save(); applyTheme(); renderProgress(); })),
+        segSetting('Язык урока', st.lang, [['py', 'Python'], ['js', 'JavaScript']], function (v) { st.lang = v; st.prefsAt = Date.now(); S.save(); if (v === 'py') R.preload('py'); renderProgress(); }),
+        segSetting('Мой опыт', st.level || 'new', [['new', 'Новичок'], ['some', 'Немного'], ['pro', 'Уверенно']], function (v) { st.level = v; st.prefsAt = Date.now(); S.save(); renderProgress(); }),
+        segSetting('Тема', st.theme, [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']], function (v) { st.theme = v; st.prefsAt = Date.now(); S.save(); applyTheme(); renderProgress(); })),
       h('section', { class: 'group' },
         h('button', { class: 'row tap', onclick: function () { window.UI.downloadText('bastau-progress-' + C.dayKey(Date.now()) + '.json', S.exportJSON(), 'application/json'); toast('Файл сохранён.'); } }, h('span', { class: 'row-ic' }, icon('download', 20)), h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Сохранить прогресс в файл' }), h('div', { class: 'row-s', text: 'Всё хранится только на этом устройстве' }))),
         h('button', { class: 'row tap', onclick: function () { fileIn.click(); } }, h('span', { class: 'row-ic' }, icon('upload', 20)), h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Загрузить из файла' }))),
         h('button', { class: 'row tap danger', onclick: function () {
-          window.UI.confirmSheet({ title: 'Стереть весь прогресс?', text: 'Уроки, карточки и серия будут удалены с этого устройства. Это нельзя отменить — сначала можно сохранить файл.', confirm: 'Стереть', danger: true, onConfirm: function () { S.reset(); applyTheme(); sbLang = null; start(); } });
+          window.UI.confirmSheet({ title: 'Стереть весь прогресс?', text: A && A.state().status === 'in' ? 'Уроки, карточки и серия будут удалены на всех устройствах этого аккаунта. Это нельзя отменить — сначала можно сохранить файл.' : 'Уроки, карточки и серия будут удалены с этого устройства. Это нельзя отменить — сначала можно сохранить файл.', confirm: 'Стереть', danger: true, onConfirm: function () { S.reset(); applyTheme(); sbLang = null; courses = {}; start(); } });
         } }, h('span', { class: 'row-ic' }, icon('trash', 20)), h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Стереть прогресс' })))),
       fileIn,
-      h('p', { class: 'muted small center', text: 'Бастау · данные не покидают устройство · Python загружается из jsDelivr при первом запуске' })));
+      h('p', { class: 'muted small center', text: 'Бастау · без входа прогресс хранится только на этом устройстве · Python загружается из jsDelivr при первом запуске' })));
   }
+  /* ---------- аккаунт ---------- */
+  var A = window.Account || null;
+  function agoText(ms) {
+    var s = Math.round((Date.now() - ms) / 1000);
+    if (s < 60) return 'только что';
+    if (s < 3600) return Math.round(s / 60) + ' мин назад';
+    return fmtDate(ms, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  }
+  function accountCard() {
+    if (!A || !A.state().available) return null;
+    var a = A.state();
+    if (a.status === 'in' || a.status === 'restoring') {
+      var line = a.status === 'restoring' ? 'Проверяю вход…'
+        : a.sync === 'syncing' ? 'Сохраняю в облако…'
+        : a.sync === 'ok' ? 'Сохранено в облаке · ' + agoText(a.syncedAt)
+        : a.sync === 'offline' ? 'Нет связи. Сохранено на устройстве, уйдёт в облако позже.'
+        : a.sync === 'error' ? a.error : 'Прогресс привязан к аккаунту.';
+      return h('section', { class: 'card account', 'aria-label': 'Аккаунт' },
+        h('div', { class: 'row' }, h('span', { class: 'row-ic tint' }, icon('user', 22)),
+          h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: a.email || 'Аккаунт Google' }), h('div', { class: 'row-s' + (a.sync === 'error' ? ' bad' : ''), role: 'status', text: line }))),
+        a.status === 'in' ? h('div', { class: 'account-actions' },
+          h('button', { class: 'btn secondary', onclick: function () { A.syncNow(); } }, 'Сохранить сейчас'),
+          h('button', { class: 'btn ghost', onclick: function () {
+            A.signOut().then(function (saved) { toast(saved === false ? 'Вышел. Последние изменения не успели уйти в облако — они остались на этом устройстве.' : 'Вышел из аккаунта. Прогресс сохранён в облаке.'); });
+          } }, 'Выйти')) : null);
+    }
+    return h('section', { class: 'card account', 'aria-label': 'Аккаунт' },
+      h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('user', 22)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Сохранять прогресс в аккаунте' }),
+          h('div', { class: 'row-s', text: 'Сейчас прогресс хранится только на этом устройстве. С аккаунтом Google он не потеряется и будет доступен на телефоне и компьютере.' }))),
+      a.error ? h('p', { class: 'account-err', role: 'alert', text: a.error }) : null,
+      h('button', { class: 'btn primary lg', disabled: a.status === 'loading', onclick: function () { A.signIn(); } }, a.status === 'loading' ? 'Открываю окно входа…' : 'Войти через Google'),
+      h('p', { class: 'muted small', text: 'В облаке хранится только прогресс: уроки, карточки, серия и твои объяснения. Имя и почта остаются в Google. Вход необязателен.' }));
+  }
+  function askGuest() {
+    var g = A.guestOffer(); if (!g) return;
+    var steps = 0; Object.keys(g.lessons || {}).forEach(function (k) { steps += (g.lessons[k].doneSteps || []).length; });
+    var cards = Object.keys(g.cards || {}).length;
+    sheet({
+      title: 'Добавить прогресс с этого устройства?',
+      body: h('p', { class: 'sheet-text', text: 'На этом устройстве есть прогресс, сделанный без входа: шагов — ' + steps + ', карточек — ' + cards + '. Добавить его в аккаунт ' + (A.state().email || '') + '? Если это прогресс другого человека, выбери «Не добавлять».' }),
+      actions: [
+        { label: 'Добавить в аккаунт', kind: 'primary', onClick: function (close) { close(); A.answerGuest(true); toast('Прогресс добавлен в аккаунт.'); } },
+        { label: 'Не добавлять', kind: 'secondary', onClick: function (close) { close(); A.answerGuest(false); } }
+      ]
+    });
+  }
+  if (A) A.onChange(function (kind) {
+    if (kind === 'guest') { askGuest(); return; }
+    if (openShell) return; // под открытым уроком экран не перерисовываем
+    if (kind === 'data') {
+      courses = {}; applyTheme();
+      var wel = document.querySelector('.welcome');
+      if (wel && S.get().welcomed) { wel.parentNode.removeChild(wel); document.body.classList.remove('has-welcome'); }
+      else if (!wel && !S.get().welcomed) { renderTab(); renderWelcome(); return; }
+    }
+    if (tab === 'progress' || kind === 'data') renderTab();
+  });
+
   function tile(v, l) { return h('div', { class: 'tile' }, h('div', { class: 'tile-v', text: v }), h('div', { class: 'tile-l', text: l })); }
 
   /* ---------- вкладки ---------- */
@@ -707,12 +772,13 @@
         h('div', { class: 'conf-label', text: 'Твой опыт' }),
         h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Опыт' }, levels),
         h('button', { class: 'btn primary lg', onclick: function () {
-          st.lang = lang; st.level = level; st.welcomed = true; S.save();
+          var cur = S.get(); cur.lang = lang; cur.level = level; cur.welcomed = true; cur.prefsAt = Date.now(); S.save(); // S.get() на момент нажатия: после входа это уже прогресс аккаунта
           if (el.parentNode) el.parentNode.removeChild(el);
           document.body.classList.remove('has-welcome');
           renderTab(); openLesson(false);
         } }, 'Начать урок'),
-        h('p', { class: 'muted small center', text: 'Без регистрации. Прогресс хранится только на этом устройстве.' })));
+        A && A.state().available ? h('button', { class: 'btn ghost lg', disabled: A.state().status === 'loading', onclick: function () { A.signIn().then(function (ok) { if (!ok && A.state().error) toast(A.state().error); }); } }, 'У меня уже есть аккаунт — войти') : null,
+        h('p', { class: 'muted small center', text: A && A.state().available ? 'Можно без регистрации: тогда прогресс хранится только на этом устройстве.' : 'Без регистрации. Прогресс хранится только на этом устройстве.' })));
     }
     draw();
     overlayRoot.appendChild(el);

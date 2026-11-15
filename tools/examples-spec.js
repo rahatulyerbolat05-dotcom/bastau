@@ -4,14 +4,14 @@
 
    Приватность: приложение публичное, поэтому не показываем имена преподавателей, предметы,
    пароли/ключи/токены и ссылки на закрытые страницы (приложение для школьника — без названия класса и ссылки). */
-const ZAD_ZIP = 'D:/zadaniya-25pro1/zadaniya-25pro1-src.zip';
+const ZAD_ZIP = 'D:/Проекты/zadaniya-25pro1/zadaniya-25pro1-src.zip';
 
 module.exports = [
   {
     id: 'qalta', name: 'Қalta', icon: 'wallet',
     tagline: 'Учёт расходов в одну строку: пишешь «кофе 2800 вчера» — приложение само находит сумму, день и категорию. Есть бот для Telegram.',
     stack: ['JavaScript', 'PWA', 'Firebase', 'Cloudflare Worker'],
-    root: 'D:/qalta-app', git: 'D:/qalta-app',
+    root: 'D:/Проекты/qalta-app', git: 'D:/Проекты/qalta-app',
     countFiles: ['src/parse.js', 'src/cat.js', 'src/logic.js', 'src/component.js', 'src/i18n.js', 'sync-engine.js', 'bot/core.js', 'bot/worker.js'],
     tree: [
       ['src/parse.js', 'Разбор фразы: сумма, день, время, «расход или доход»'],
@@ -81,7 +81,7 @@ module.exports = [
     id: 'raspisanie', name: 'Расписание колледжа', icon: 'cal',
     tagline: 'Расписание на телефоне: само определяет, числитель сейчас или знаменатель, а все пары берёт из одного файла данных.',
     stack: ['JavaScript', 'HTML', 'GitHub Pages'],
-    root: 'D:/Raspesanya', git: 'D:/Raspesanya',
+    root: 'D:/Проекты/Raspesanya', git: 'D:/Проекты/Raspesanya',
     countFiles: ['index.html', 'schedule-data.js'],
     tree: [
       ['schedule-data.js', 'Единственный файл, который меняется при обновлении расписания: пары, преподаватели, кабинеты'],
@@ -127,7 +127,7 @@ module.exports = [
     id: 'raspisanie-green', name: 'Расписание школьника', icon: 'bell',
     tagline: 'То же приложение в зелёном стиле с напоминанием за час до первого урока: уведомление в телефоне и файл для календаря.',
     stack: ['JavaScript', 'Service Worker', 'iCalendar (.ics)'],
-    root: 'D:/Raspisanie-green', git: 'D:/Raspisanie-green',
+    root: 'D:/Проекты/Raspisanie-green', git: 'D:/Проекты/Raspisanie-green',
     countFiles: ['index.html', 'schedule-data.js', 'sw.js'],
     tree: [
       ['schedule-data.js', 'Данные расписания — единственный файл, который меняется'],

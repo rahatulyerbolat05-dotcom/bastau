@@ -552,7 +552,7 @@
       h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Привязка' }, cBtns), summary));
     paintTime(); paintCue(); sum();
 
-    function save() { window.Store.get().plan = { time: time, cue: cue }; window.Store.save(); }
+    function save() { window.Store.get().plan = { time: time, cue: cue, at: Date.now() }; window.Store.save(); }
     function ics() {
       var p = time.split(':').map(Number);
       var d = new Date(); d.setDate(d.getDate() + 1); d.setHours(p[0], p[1], 0, 0);

@@ -1,6 +1,6 @@
 /* Сгенерировано tools/build-examples.js из исходников программ — не править руками. */
 window.EXAMPLES = {
- "builtAt": "2026-11-08",
+ "builtAt": "2026-11-15",
  "projects": [
   {
    "id": "qalta",
@@ -14,7 +14,7 @@ window.EXAMPLES = {
     "Cloudflare Worker"
    ],
    "stat": "4 218 строк кода",
-   "where": "D:\\qalta-app",
+   "where": "D:\\Проекты\\qalta-app",
    "commit": "152953b (+ правки без коммита)",
    "tree": [
     [
@@ -213,7 +213,7 @@ window.EXAMPLES = {
     "GitHub Pages"
    ],
    "stat": "1 351 строк кода",
-   "where": "D:\\Raspesanya",
+   "where": "D:\\Проекты\\Raspesanya",
    "commit": "f59e350",
    "tree": [
     [
@@ -311,7 +311,7 @@ window.EXAMPLES = {
     "iCalendar (.ics)"
    ],
    "stat": "1 577 строк кода",
-   "where": "D:\\Raspisanie-green",
+   "where": "D:\\Проекты\\Raspisanie-green",
    "commit": "fda9553",
    "tree": [
     [
@@ -810,9 +810,9 @@ window.EXAMPLES = {
     "Pyodide (Python в браузере)",
     "PWA"
    ],
-   "stat": "2 241 строк кода",
-   "where": "D:\\bastau",
-   "commit": "1d8a913 (+ правки без коммита)",
+   "stat": "3 686 строк кода",
+   "where": "D:\\Проекты\\bastau",
+   "commit": "01ade34 (+ правки без коммита)",
    "tree": [
     [
      "js/core.js",

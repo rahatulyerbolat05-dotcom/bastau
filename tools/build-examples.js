@@ -104,7 +104,7 @@ const projects = spec.map(p => {
   const g = gitShort(p.git);
   return {
     id: p.id, name: p.name, icon: p.icon, tagline: p.tagline, stack: p.stack, stat,
-    where: p.zip ? 'исходники в архиве на твоём ПК' : (p.root === '.' ? 'D:\\bastau' : p.root.replace(/\//g, '\\')),
+    where: p.zip ? 'исходники в архиве на твоём ПК' : (p.root === '.' ? path.resolve(ROOT) : p.root.replace(/\//g, '\\')),
     commit: g ? g.sha + (g.dirty ? ' (+ правки без коммита)' : '') : null,
     tree: p.tree, snippets: sn
   };
