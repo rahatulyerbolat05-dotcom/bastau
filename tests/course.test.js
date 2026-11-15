@@ -43,7 +43,7 @@ function verdict(step, r, code) {
 const LANGS = ['py', 'js'];
 
 test('уроки: id шагов уникальны, карточки существуют и не пересекаются между уроками', () => {
-  assert.ok(Course.LESSONS.length >= 4);
+  assert.ok(Course.LESSONS.length >= 5);
   const seenCards = new Set();
   for (const lang of LANGS) {
     seenCards.clear();
@@ -214,3 +214,25 @@ test('объяснения ошибок для переменных', () => {
   assert.match(Core.explainError('js', 'ReferenceError: sity is not defined'), /переменная/);
   assert.match(Core.explainError('py', 'TypeError: can only concatenate str (not "int") to str'), /str\(5\)/);
 });
+
+for (const lang of LANGS) {
+  test('день 5 (' + lang + '): обходные решения не засчитываются, другие верные — засчитываются', { skip: lang === 'py' && !PY ? 'нет python' : false }, () => {
+    const py = lang === 'py';
+    const out = py ? 'print' : 'console.log', end = py ? '' : ';';
+    const p = t => out + '(' + t + ')' + end;
+    const check = (stepId, code, want) => {
+      const s = Course.build(lang, 'for').steps.find(x => x.id === stepId);
+      assert.equal(verdict(s, run(lang, code), code).ok, want, 'for/' + stepId + ':\n' + code);
+    };
+    check('make1', [1, 2, 3, 4].map(() => p('"Привет"')).join('\n'), false);
+    check('modify', [1, 2, 3, 4, 5].map(() => p('"Привет"')).join('\n'), false);
+    check('make2', p('15'), false);
+    // сумма без накопления в цикле: цикл есть, но ответ вписан руками
+    check('make2', py ? 'total = 15\nfor i in range(1):\n    pass\nprint(total)' : 'let total = 15;\nfor (let i = 0; i < 1; i++) { }\nconsole.log(total);', false);
+    // короткая запись += тоже верна
+    check('make2', py ? 'total = 0\nfor i in range(1, 6):\n    total += i\nprint(total)' : 'let total = 0;\nfor (let i = 1; i <= 5; i++) {\n  total += i;\n}\nconsole.log(total);', true);
+    // другой верный способ починить счёт с нуля: прибавить единицу при выводе
+    check('debug2', py ? 'for i in range(5):\n    print(i + 1)' : 'for (let i = 0; i < 5; i++) {\n  console.log(i + 1);\n}', true);
+    check('debug2', [1, 2, 3, 4, 5].map(n => p(n)).join('\n'), false);
+  });
+}

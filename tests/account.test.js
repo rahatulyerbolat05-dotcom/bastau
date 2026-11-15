@@ -282,3 +282,77 @@ test('хранилище: «стереть прогресс» ставит от�
   d.Store.use('../x y');
   assert.equal(d.Store.account(), 'xy');
 });
+
+/* ---------- регрессия: после входа язык не сбрасывается, прогресс остаётся виден ---------- */
+function learnJs(dev) {
+  const s = dev.Store.get();
+  s.lang = 'js'; s.level = 'new'; s.welcomed = true; // как у человека, который учился до появления входа: prefsAt нет
+  delete s.prefsAt;
+  learn(dev, 'hello:js', ['goal', 'predict1', 'done'], 'js:q-print');
+  dev.Store.lesson('hello:js').done = true;
+  dev.Store.save(); dev.Store.flush();
+}
+
+test('вход с прогрессом на JavaScript: после добавления язык остаётся JavaScript, пройденное видно', async () => {
+  const cloud = makeCloud(), pc = makeDevice(cloud);
+  learnJs(pc);
+  await pc.Account.signIn(); await settle();
+  pc.Account.answerGuest(true); await settle();
+  assert.equal(pc.Store.get().lang, 'js', 'пустой аккаунт не должен сбрасывать язык на Python');
+  assert.equal(pc.Store.get().level, 'new');
+  assert.equal(pc.Store.get().lessons['hello:js'].done, true);
+  assert.equal(cloud.state('alice').lang, 'js');
+
+  // чистый телефон (по умолчанию Python) получает язык из аккаунта, а не навязывает свой
+  const phone = makeDevice(cloud);
+  await phone.Account.signIn(); await settle();
+  assert.equal(phone.Store.get().lang, 'js');
+  assert.equal(cloud.state('alice').lang, 'js', 'и не портит язык в облаке');
+  await pc.Account.syncNow(); await settle();
+  assert.equal(pc.Store.get().lang, 'js');
+});
+
+test('сознательная смена языка расходится по устройствам', async () => {
+  const cloud = makeCloud(), pc = makeDevice(cloud), phone = makeDevice(cloud);
+  learnJs(pc);
+  await pc.Account.signIn(); await settle(); pc.Account.answerGuest(true); await settle();
+  await phone.Account.signIn(); await settle();
+  const s = phone.Store.get(); s.lang = 'py'; s.prefsAt = Date.now(); phone.Store.save(); phone.Store.flush();
+  await phone.Account.syncNow(); await settle();
+  await pc.Account.syncNow(); await settle();
+  assert.equal(pc.Store.get().lang, 'py');
+  assert.equal(pc.Store.get().lessons['hello:js'].done, true, 'прогресс на JavaScript при этом цел');
+});
+
+test('ответил «не добавлять» или закрыл окно — прогресс устройства можно добавить позже', async () => {
+  const cloud = makeCloud(), pc = makeDevice(cloud);
+  learnJs(pc);
+  await pc.Account.signIn(); await settle();
+  assert.ok(pc.Account.guestLocal(), 'пока вопрос висит, прогресс устройства доступен для добавления');
+  pc.Account.answerGuest(false); await settle();
+  assert.equal(Core.hasProgress(pc.Store.get()), false);
+
+  const g = pc.Account.guestLocal();
+  assert.ok(g && g.cards['js:q-print'], 'после отказа кнопка добавления остаётся');
+  assert.equal(pc.Account.addGuest(), true);
+  await settle();
+  assert.equal(pc.Store.get().lessons['hello:js'].done, true);
+  assert.equal(pc.Store.get().lang, 'js');
+  assert.ok(cloud.state('alice').cards['js:q-print']);
+  assert.equal(pc.Account.guestLocal(), null, 'добавлять больше нечего');
+  assert.equal(pc.Account.addGuest(), false);
+
+  // без входа и при открытом уроке добавление недоступно
+  await pc.Account.signOut(); await settle();
+  assert.equal(pc.Account.guestLocal(), null);
+});
+
+test('повреждённый гостевой прогресс не предлагается и ничего не ломает', async () => {
+  const cloud = makeCloud(), pc = makeDevice(cloud);
+  await pc.Account.signIn(); await settle();
+  for (const bad of ['{не json', '[]', '{"v":1,"lang":"xx"}']) {
+    pc.store.set('bastau.v1', bad);
+    assert.equal(pc.Store.peekGuest(), null, bad);
+    assert.equal(pc.Account.guestLocal(), null, bad);
+  }
+});

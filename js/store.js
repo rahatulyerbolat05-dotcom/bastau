@@ -57,6 +57,15 @@
       return state;
     },
     account: function () { return key === BASE ? null : key.slice(BASE.length + 3); },
+    // прогресс гостя на этом устройстве, не переключаясь на него (для «добавить в аккаунт»); null, если его нет или он повреждён
+    peekGuest: function () {
+      if (key === BASE) return state;
+      try {
+        var raw = localStorage.getItem(BASE);
+        var s = raw ? JSON.parse(raw) : null;
+        return s && window.Core.validateState(s) ? Object.assign(fresh(), s) : null;
+      } catch (e) { return null; }
+    },
     // заменить прогресс целиком (результат слияния с облаком). silent: не будить слушателей — иначе пришедшее из облака ушло бы обратно
     replace: function (s, silent) {
       var sandbox = state.sandbox;

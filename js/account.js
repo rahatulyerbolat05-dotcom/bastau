@@ -166,6 +166,25 @@
         emit('data');
         runSync();
       }
+    },
+    // Прогресс этого устройства, сделанный без входа, которого ещё нет в аккаунте (или null).
+    // Доступен всегда, а не только в момент входа: окно с вопросом можно закрыть или ответить «нет» по ошибке.
+    guestLocal: function () {
+      if (st.status !== 'in' || busy()) return null;
+      var g = window.Store.peekGuest();
+      if (!g || !window.Core.hasProgress(g)) return null;
+      var acc = window.Store.get();
+      return window.Core.sameCloud(window.Core.mergeState(acc, g), acc) ? null : g;
+    },
+    addGuest: function () {
+      var g = Account.guestLocal();
+      if (!g) return false;
+      guestOffer = null;
+      ls(false, ADOPTED + st.uid, '1');
+      window.Store.replace(window.Core.mergeState(window.Store.get(), g), true);
+      emit('data');
+      runSync();
+      return true;
     }
   };
 

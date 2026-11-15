@@ -573,10 +573,13 @@
     // план и настройки: побеждает более поздняя запись
     var pa = a.plan || null, pb = b.plan || null;
     out.plan = pa && pb ? clone(((pa.at || 0) !== (pb.at || 0)) ? ((pa.at || 0) > (pb.at || 0) ? pa : pb) : pickStable(pa, pb)) : clone(pa || pb);
-    var fa = a.prefsAt || 0, fb = b.prefsAt || 0;
+    // Настройки «по умолчанию» (человек ещё ничего не выбирал) не должны побеждать выбранные:
+    // иначе пустой аккаунт или новое устройство сбрасывали бы язык, и пройденные уроки пропадали бы из виду.
+    var chosen = function (s) { return s.prefsAt || (s.welcomed || hasProgress(s) ? 1 : 0); };
+    var fa = chosen(a), fb = chosen(b);
     var prefs = function (s) { return { lang: s.lang, level: s.level || null, theme: s.theme || 'auto' }; };
     var pw = fa !== fb ? prefs(fa > fb ? a : b) : pickStable(prefs(a), prefs(b));
-    out.lang = pw.lang; out.level = pw.level; out.theme = pw.theme; out.prefsAt = Math.max(fa, fb);
+    out.lang = pw.lang; out.level = pw.level; out.theme = pw.theme; out.prefsAt = Math.max(a.prefsAt || 0, b.prefsAt || 0);
 
     out.welcomed = !!(a.welcomed || b.welcomed);
     out.created = minPos(a.created, b.created) || a.created || b.created || 0;

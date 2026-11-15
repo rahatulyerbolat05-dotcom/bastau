@@ -381,6 +381,9 @@ a { color: var(--info); }
 .part-cond { color: var(--c-num); box-shadow: inset 0 -2px 0 var(--c-num); }
 .part-colon, .part-brace { color: var(--c-kw); box-shadow: inset 0 -2px 0 var(--c-kw); }
 .account { display: grid; gap: var(--s3); }
+.account-guest { display: grid; gap: var(--s2); padding: var(--s3) var(--s4); border-radius: 12px; background: var(--tint-bg); }
+.account-guest p { margin: 0; color: var(--label); }
+.lang-hint { display: grid; gap: var(--s3); }
 .account-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .account-actions .btn { flex: 1 1 9rem; min-height: var(--tap); }
 .account-err { margin: 0; padding: var(--s3) var(--s4); border-radius: 12px; background: var(--danger-bg, rgba(255, 59, 48, 0.12)); color: var(--label); font-size: var(--fs-sub); line-height: 1.4; }

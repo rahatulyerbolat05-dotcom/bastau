@@ -315,6 +315,15 @@
   function statBox(v, l) { return h('div', { class: 'stat' }, h('div', { class: 'stat-v', text: v }), h('div', { class: 'stat-l', text: l })); }
 
   /* ---------- вкладка «Сегодня» ---------- */
+  // есть ли прогресс на этом языке (уроки и карточки хранятся отдельно для Python и JavaScript)
+  function langProgress(st, lang) {
+    var inLessons = Object.keys(st.lessons || {}).some(function (k) {
+      var l = st.lessons[k];
+      return k.slice(-lang.length - 1) === ':' + lang && l && (l.done || (l.doneSteps || []).length);
+    });
+    return inLessons || Object.keys(st.cards || {}).some(function (k) { return k.indexOf(lang + ':') === 0; });
+  }
+
   function skipLesson(id) {
     var lang = S.get().lang, L = S.lesson(lessonKey(lang, id)), c = course(lang, id);
     L.done = true; L.skipped = true; L.doneAt = Date.now(); if (!L.startedAt) L.startedAt = Date.now();
@@ -390,6 +399,7 @@
 
     clear(main).appendChild(h('div', { class: 'page' },
       h('header', { class: 'large-title' }, h('div', null, h('div', { class: 'overline', text: cap(fmtDate(Date.now(), { weekday: 'long', day: 'numeric', month: 'long' })) }), h('h1', { text: 'Сегодня' })), streakBtn),
+      otherLangCard(st),
       hero, reviewCard,
       A && A.state().status === 'out' && C.hasProgress(st) ? h('button', { class: 'card tap', onclick: function () { go('progress'); } },
         h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('user', 22)),
@@ -405,6 +415,20 @@
           h('p', { class: 'muted small', text: 'Прийти на 5 минут важнее, чем сидеть час раз в неделю. Пропущенный день не страшен.' }))),
       h('h2', { class: 'section-h', text: 'Дни курса' }),
       h('section', { class: 'group' }, road)));
+  }
+
+  function otherLangCard(st) {
+    var other = st.lang === 'js' ? 'py' : 'js';
+    if (langProgress(st, st.lang) || !langProgress(st, other)) return null;
+    return h('section', { class: 'card flat lang-hint', role: 'status' },
+      h('div', { class: 'row' }, h('span', { class: 'row-ic tint' }, icon('info', 22)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Твой прогресс — на ' + langName(other) }),
+          h('div', { class: 'row-s', text: 'Сейчас выбран ' + langName(st.lang) + ', поэтому пройденные дни здесь не видны. Прогресс для каждого языка считается отдельно.' }))),
+      h('button', { class: 'btn primary', onclick: function () {
+        var cur = S.get(); cur.lang = other; cur.prefsAt = Date.now(); S.save();
+        if (other === 'py') R.preload('py');
+        renderTab();
+      } }, 'Переключить на ' + langName(other)));
   }
 
   function openStreak() {
@@ -654,6 +678,7 @@
       return h('section', { class: 'card account', 'aria-label': 'Аккаунт' },
         h('div', { class: 'row' }, h('span', { class: 'row-ic tint' }, icon('user', 22)),
           h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: a.email || 'Аккаунт Google' }), h('div', { class: 'row-s' + (a.sync === 'error' ? ' bad' : ''), role: 'status', text: line }))),
+        guestExtra(),
         a.status === 'in' ? h('div', { class: 'account-actions' },
           h('button', { class: 'btn secondary', onclick: function () { A.syncNow(); } }, 'Сохранить сейчас'),
           h('button', { class: 'btn ghost', onclick: function () {
@@ -667,6 +692,13 @@
       a.error ? h('p', { class: 'account-err', role: 'alert', text: a.error }) : null,
       h('button', { class: 'btn primary lg', disabled: a.status === 'loading', onclick: function () { A.signIn(); } }, a.status === 'loading' ? 'Открываю окно входа…' : 'Войти через Google'),
       h('p', { class: 'muted small', text: 'В облаке хранится только прогресс: уроки, карточки, серия и твои объяснения. Имя и почта остаются в Google. Вход необязателен.' }));
+  }
+  function guestExtra() {
+    var g = A.guestLocal(); if (!g) return null;
+    var steps = 0; Object.keys(g.lessons || {}).forEach(function (k) { steps += (g.lessons[k].doneSteps || []).length; });
+    return h('div', { class: 'account-guest' },
+      h('p', { class: 'muted small', text: 'На этом устройстве есть прогресс, сделанный без входа (шагов: ' + steps + ', карточек: ' + Object.keys(g.cards || {}).length + '). В аккаунте его пока нет.' }),
+      h('button', { class: 'btn primary', onclick: function () { if (A.addGuest()) toast('Прогресс с этого устройства добавлен в аккаунт.'); } }, 'Добавить в аккаунт'));
   }
   function askGuest() {
     var g = A.guestOffer(); if (!g) return;

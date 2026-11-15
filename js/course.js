@@ -1,4 +1,4 @@
-/* Содержание: уроки дней 1–4 (Hello, World!; переменные и типы; условия; цикл while) для Python и JavaScript, карточки повторения, пояснения «почему так». */
+/* Содержание: уроки дней 1–5 (Hello, World!; переменные и типы; условия; цикл while; цикл for) для Python и JavaScript, карточки повторения, пояснения «почему так». */
 (function () {
   'use strict';
 
@@ -50,9 +50,10 @@
     { id: 'hello', day: 1, title: 'Hello, World!', minutes: 20 },
     { id: 'vars', day: 2, title: 'Переменные и типы данных', minutes: 20 },
     { id: 'cond', day: 3, title: 'Условия: если… иначе', minutes: 20 },
-    { id: 'loops', day: 4, title: 'Циклы: повторяй, пока…', minutes: 20 }
+    { id: 'loops', day: 4, title: 'Циклы: повторяй, пока…', minutes: 20 },
+    { id: 'for', day: 5, title: 'Цикл for: повтори N раз', minutes: 20 }
   ];
-  var ROADMAP = ['Цикл for: повтори N раз', 'Списки', 'Функции'];
+  var ROADMAP = ['Списки', 'Функции'];
 
   function buildHello(lang) {
     var py = lang !== 'js';
@@ -1130,7 +1131,279 @@
     return { id: 'loops', title: 'Циклы: повторяй, пока…', day: 4, minutes: 20, steps: steps, cards: cards, lang: lang };
   }
 
-  var BUILDERS = { hello: buildHello, vars: buildVars, cond: buildCond, loops: buildLoops };
+  /* ======================= День 5: цикл for ======================= */
+  function buildFor(lang) {
+    var k = kit(lang), py = k.py, asg = k.asg, set = k.set, show = k.show, prog = k.prog;
+    // forN: повторить n раз (счётчик 0..n-1); forR: счётчик от a до b включительно
+    var forHeadN = function (n) { return py ? 'for i in range(' + n + '):' : 'for (let i = 0; i < ' + n + '; i++) {'; };
+    var forHeadR = function (a, b) { return py ? 'for i in range(' + a + ', ' + (b + 1) + '):' : 'for (let i = ' + a + '; i <= ' + b + '; i++) {'; };
+    var wrap = function (head, body) { return head + '\n' + k.ind(body) + (py ? '' : '\n}'); };
+    var forN = function (n, body) { return wrap(forHeadN(n), body); };
+    var forR = function (a, b, body) { return wrap(forHeadR(a, b), body); };
+    var rep = function (word, n) { var a = []; for (var i = 0; i < n; i++) a.push(word); return a.join('\n'); };
+    var needFor = function (code, maxOuts, msgOuts) {
+      if (!k.has(code, /\bfor\b/)) return { ok: false, msg: 'Здесь нужен цикл for: одна команда вывода внутри цикла вместо нескольких подряд.' };
+      if (k.outs(code) > maxOuts) return { ok: false, msg: msgOuts };
+      return { ok: true };
+    };
+
+    var defs = {};
+
+    defs['f-fill'] = {
+      kind: 'fill', card: 'f-fill', tag: 'Заполни пропуски', why: 'completion',
+      title: 'Допиши цикл', prompt: 'Цикл должен повториться 5 раз. Впиши недостающее.',
+      tpl: py ? ['for i in ', { b: 0 }, '(', { b: 1 }, '):'] : ['for (let i = 0; i ', { b: 0 }, ' 5; i', { b: 1 }, ') {'],
+      blanks: py ? [{ accept: ['range'], label: 'команда, которая даёт числа' }, { accept: ['5'], label: 'сколько раз' }]
+        : [{ accept: ['<'], label: 'знак сравнения' }, { accept: ['++'], label: 'увеличить на 1' }],
+      okText: py ? 'range(5) даёт пять чисел: 0, 1, 2, 3, 4. Сколько чисел — столько кругов.' : 'Пока i меньше 5, цикл работает. i++ после каждого круга прибавляет к i единицу.',
+      hintText: py ? 'Первый пропуск — слово range. Второй — число повторов: 5.' : 'Первый пропуск — знак «меньше»: <. Второй — два плюса: ++.'
+    };
+
+    defs['f-debug-syntax'] = {
+      kind: 'code', mode: 'debug', card: 'f-debug-syntax', tag: 'Найди ошибку', why: 'debug',
+      title: 'Сломанный for', prompt: 'Программа должна три раза вывести Ура, но не запускается. Запусти, прочитай подсказку под ошибкой и исправь.',
+      starter: py ? 'for i in range(3)\n    print("Ура")' : 'for let i = 0; i < 3; i++ {\n  console.log("Ура");\n}',
+      expect: 'Ура\nУра\nУра',
+      preface: py ? 'Строка с for заканчивается двоеточием — так же, как строки с if и while.' : 'У for, как у if и while, всё, что управляет циклом, стоит в круглых скобках.',
+      hints: py ? ['Посмотри на конец первой строки.', 'После range(3) нужно двоеточие.', 'Должно быть так: for i in range(3):']
+        : ['Посмотри, что стоит сразу после слова for.', 'Три части цикла нужно взять в круглые скобки.', 'Должно быть так: for (let i = 0; i < 3; i++) {'],
+      solution: forN(3, show('"Ура"'))
+    };
+
+    defs['f-debug-off'] = {
+      kind: 'code', mode: 'debug', card: 'f-debug-off', tag: 'Найди ошибку', why: 'debug',
+      title: 'Счёт с нуля', prompt: 'Нужно вывести числа от 1 до 5. Программа выводит от 0 до 4. Ошибки нет — цикл начинает не с того числа. Исправь.',
+      starter: forN(5, show('i')), expect: '1\n2\n3\n4\n5',
+      validate: function (out, code) {
+        var r = k.outOk(out, '1\n2\n3\n4\n5'); if (!r.ok) return r;
+        return needFor(code, 1, 'Не добавляй команды вывода. Исправь сам цикл.');
+      },
+      hints: py ? ['range(5) даёт числа 0, 1, 2, 3, 4 — счёт идёт с нуля.', 'У range может быть два числа: с какого начать и перед каким остановиться.', 'Замени range(5) на range(1, 6).']
+        : ['Цикл начинается с i = 0 и работает, пока i < 5.', 'Начать нужно с 1, а закончить на 5 включительно.', 'Должно быть так: for (let i = 1; i <= 5; i++) {'],
+      solution: forR(1, 5, show('i'))
+    };
+
+    defs['f-write-hello'] = {
+      kind: 'code', mode: 'write', card: 'f-write-hello', tag: 'Напиши сам', why: 'make',
+      title: 'Четыре раза', prompt: 'Выведи слово Привет четыре раза, каждое на своей строке. Используй цикл for.',
+      starter: '', expect: rep('Привет', 4),
+      validate: function (out, code) {
+        var r = k.outOk(out, rep('Привет', 4)); if (!r.ok) return r;
+        return needFor(code, 1, 'Команда вывода должна быть одна — внутри цикла.');
+      },
+      hints: [
+        'Нужна одна строка с for и одна команда вывода внутри.',
+        py ? 'Число повторов стоит в скобках у range.' : 'Цикл работает, пока i меньше числа повторов.',
+        'Каркас:\n' + forN('...', show('"Привет"'))
+      ],
+      solution: forN(4, show('"Привет"'))
+    };
+
+    defs['f-write-sum'] = {
+      kind: 'code', mode: 'write', card: 'f-write-sum', tag: 'Напиши сам', why: 'make',
+      title: 'Сумма чисел', prompt: 'Посчитай сумму чисел от 1 до 5 и выведи её. Создай переменную total со значением 0 и в цикле прибавляй к ней счётчик i.',
+      starter: '', expect: '15',
+      validate: function (out, code) {
+        var r = k.outOk(out, '15'); if (!r.ok) return r;
+        var need = needFor(code, 1, 'Команда вывода нужна одна — после цикла.'); if (!need.ok) return need;
+        if (!k.has(code, /total[ \t]*=[ \t]*total[ \t]*\+|total[ \t]*\+=/)) return { ok: false, msg: 'Ответ верный, но его нужно посчитать: в цикле прибавляй счётчик к total — ' + set('total', 'total + i') };
+        return { ok: true };
+      },
+      hints: [
+        'Перед циклом: ' + asg('total', '0') + ' Это «копилка», в которую складываются числа.',
+        'В цикле счётчик должен пройти числа 1, 2, 3, 4, 5. На каждом круге: ' + set('total', 'total + i'),
+        'Каркас:\n' + prog(asg('total', '0'), forR(1, 5, '...'), show('total'))
+      ],
+      solution: prog(asg('total', '0'), forR(1, 5, set('total', 'total + i')), show('total'))
+    };
+
+    var qs = {};
+    qs['f-q-count'] = {
+      kind: 'mcq', card: 'f-q-count', tag: 'Вспомни', why: 'retrieval',
+      q: 'Сколько раз программа выведет x?', code: forN(4, show('"x"')), out: rep('x', 4),
+      options: [{ text: '4 раза', correct: true }, { text: '3 раза' }, { text: '5 раз' }, { text: 'Без остановки' }],
+      explain: py ? 'range(4) даёт четыре числа: 0, 1, 2, 3. Сколько чисел — столько кругов.' : 'i проходит значения 0, 1, 2, 3 — четыре круга. Когда i стало 4, условие i < 4 неверно.'
+    };
+    qs['f-q-first'] = {
+      kind: 'mcq', card: 'f-q-first', tag: 'Вспомни', why: 'retrieval',
+      q: 'Что выведет эта программа?', code: forN(3, show('i')), out: '0\n1\n2',
+      options: [{ text: '0, 1, 2', correct: true }, { text: '1, 2, 3' }, { text: '0, 1, 2, 3' }, { text: '3' }],
+      explain: py ? 'range(3) начинает с нуля и останавливается перед тройкой: 0, 1, 2.' : 'Счётчик начинается с 0 и растёт, пока меньше 3: 0, 1, 2.'
+    };
+    qs['f-q-range'] = {
+      kind: 'mcq', card: 'f-q-range', tag: 'Вспомни', why: 'retrieval',
+      q: 'Что выведет эта программа?', code: forR(2, 4, show('i')), out: '2\n3\n4',
+      options: [{ text: '2, 3, 4', correct: true }, { text: '2, 3, 4, 5' }, { text: '0, 1, 2, 3, 4' }, { text: '2, 5' }],
+      explain: py ? 'range(2, 5) начинает с 2 и останавливается перед 5: выходит 2, 3, 4.' : 'Счётчик начинается с 2 и растёт, пока не больше 4: 2, 3, 4.'
+    };
+    qs['f-q-why'] = {
+      kind: 'mcq', card: 'f-q-why', tag: 'Вспомни', why: 'retrieval',
+      q: 'Чем for удобнее while, когда нужно повторить что-то заранее известное число раз?',
+      options: [
+        { text: 'Счётчик создаётся и увеличивается сам — его нельзя забыть', correct: true },
+        { text: 'for работает быстрее' },
+        { text: 'В for можно писать больше команд' },
+        { text: 'Ничем: for нельзя использовать со счётчиком' }
+      ],
+      explain: 'В while счётчик нужно создать до цикла и увеличивать внутри. Забыл увеличить — цикл не остановится. В for всё это записано в одной строке.'
+    };
+    qs['f-q-total'] = {
+      kind: 'mcq', card: 'f-q-total', tag: 'Вспомни', why: 'retrieval',
+      q: 'Что выведет эта программа?', code: prog(asg('total', '0'), forN(3, set('total', 'total + 2')), show('total')), out: '6',
+      options: [{ text: '6', correct: true }, { text: '2' }, { text: '3' }, { text: '2, 4, 6' }],
+      explain: 'Цикл делает три круга и каждый раз прибавляет 2: получается 2, 4, 6. Вывод стоит после цикла, поэтому на экране только итог — 6.'
+    };
+
+    var steps = [];
+
+    steps.push({
+      id: 'goal', kind: 'intro', tag: 'Цель',
+      title: 'Сегодня цикл станет короче',
+      lead: 'В прошлом уроке на счётчик уходило три строки: создать, проверить, увеличить. Цикл for собирает всё это в одну — и забыть про счётчик уже нельзя.',
+      flow: { code: forN(3, show('"Привет"')), out: rep('Привет', 3) },
+      points: ['Угадаешь, с какого числа начинается счёт', 'Разберёшь строку с for', 'Починишь цикл, который считает не оттуда', 'Напишешь цикл, который складывает числа'],
+      foot: '≈ 20 минут.',
+      simple: 'while — это «повторяй, пока…». for — это «повтори столько-то раз». Если ты заранее знаешь число повторов — пять отжиманий, десять шагов — удобнее for.'
+    });
+
+    steps.push({
+      id: 'predict1', kind: 'predict', tag: 'Предсказание', why: 'predict',
+      title: 'Сначала угадай',
+      question: 'Цикл делает три круга и каждый раз выводит свой счётчик i. Какие числа появятся на экране?',
+      code: forN(3, show('i')), expected: '0\n1\n2',
+      options: [
+        { id: 'a', text: '0, 1, 2', correct: true },
+        { id: 'b', text: '1, 2, 3' },
+        { id: 'c', text: '0, 1, 2, 3' },
+        { id: 'dk', text: 'Не знаю — проверим', dk: true }
+      ],
+      after: {
+        ok: 'Верно. Счёт идёт с нуля: три круга — это 0, 1 и 2.',
+        bad: 'Почти все сначала отвечают «1, 2, 3». Но в программировании счёт обычно идёт с нуля: три круга — это 0, 1 и 2. Кругов всё равно три.',
+        dk: 'Запомни главное: счёт идёт с нуля. Три круга — это 0, 1 и 2.'
+      },
+      simple: 'Представь этажи в лифте, где первый этаж подписан «0». Этажей три, но на кнопках 0, 1 и 2. Со счётчиком в цикле так же.'
+    });
+
+    steps.push({
+      id: 'anatomy', kind: 'anatomy', tag: 'Разбор', why: 'worked', novice: true,
+      title: 'Разбери строку с for',
+      lead: 'Нажми на каждую часть — узнаешь её роль.',
+      parts: py ? [{ key: 'kw', text: 'for' }, { key: 'name', text: ' i' }, { key: 'eq', text: ' in ' }, { key: 'cond', text: 'range(3)' }, { key: 'colon', text: ':' }]
+        : [{ key: 'kw', text: 'for' }, { key: 'paren', text: ' (' }, { key: 'name', text: 'let i = 0;' }, { key: 'cond', text: ' i < 3;' }, { key: 'value', text: ' i++' }, { key: 'paren', text: ')' }, { key: 'brace', text: ' {' }],
+      roles: py ? {
+        kw: { role: '1 · Слово «для»', desc: 'for по-английски «для». Вся строка читается так: «для каждого i из набора чисел».' },
+        name: { role: '2 · Счётчик', desc: 'Переменная i создаётся сама. На каждом круге в неё попадает следующее число.' },
+        eq: { role: '3 · Слово «из»', desc: 'in значит «из»: счётчик берёт числа из того, что написано справа.' },
+        cond: { role: '4 · Набор чисел', desc: 'range(3) даёт три числа: 0, 1, 2. Сколько чисел — столько кругов. Счёт идёт с нуля.' },
+        colon: { role: '5 · Двоеточие', desc: 'Как у if и while: дальше с отступом идут команды, которые повторяются.' }
+      } : {
+        kw: { role: '1 · Слово «для»', desc: 'for по-английски «для». В скобках после него — три части через точку с запятой.' },
+        paren: { role: '2 · Круглые скобки', desc: 'В них всё управление циклом: начало, условие и шаг.' },
+        name: { role: '3 · Начало', desc: 'Счётчик i создаётся один раз, перед первым кругом, и равен 0.' },
+        cond: { role: '4 · Условие', desc: 'Проверяется перед каждым кругом, как в while. Пока i меньше 3, цикл работает.' },
+        value: { role: '5 · Шаг', desc: 'Выполняется после каждого круга. i++ — короткая запись для i = i + 1.' },
+        brace: { role: '6 · Фигурная скобка', desc: 'Открывает команды, которые повторяются. В конце их закрывает скобка }.' }
+      },
+      summary: py ? 'Итого: for + счётчик + in + набор чисел. Создавать и увеличивать счётчик вручную не нужно.' : 'Итого: начало; условие; шаг. Это те же три действия, что в while, только в одной строке.',
+      simple: {
+        text: 'Вот один и тот же цикл двумя способами. Сверху — как в прошлом уроке, снизу — через for. Делают они одно и то же.',
+        code: prog(asg('i', '0'), k.loop('i < 3', prog(show('i'), set('i', 'i + 1'))), '', forN(3, show('i'))),
+        after: 'В for три строки про счётчик превратились в одну. Забыть увеличить его уже нельзя.'
+      }
+    });
+
+    steps.push({
+      id: 'predict2', kind: 'predict', tag: 'Предсказание', why: 'predict',
+      title: 'Счёт не с нуля',
+      question: 'Цикл может начинаться с любого числа. Что выведет эта программа?',
+      code: forR(1, 3, show('i')), expected: '1\n2\n3',
+      options: [
+        { id: 'a', text: '1, 2, 3', correct: true },
+        { id: 'b', text: '1, 2, 3, 4' },
+        { id: 'c', text: '0, 1, 2, 3' },
+        { id: 'd', text: '1, 2' },
+        { id: 'dk', text: 'Не знаю — проверим', dk: true }
+      ],
+      after: py ? {
+        ok: 'Верно. range(1, 4) начинает с 1 и останавливается перед 4.',
+        bad: 'У range два числа: с какого начать и перед каким остановиться. range(1, 4) — это 1, 2, 3. Само число 4 не входит.',
+        dk: 'У range два числа: с какого начать и перед каким остановиться. range(1, 4) — это 1, 2, 3.'
+      } : {
+        ok: 'Верно. Счётчик начинается с 1 и идёт, пока не больше 3.',
+        bad: 'Смотри на три части: начинаем с i = 1, работаем, пока i <= 3, после каждого круга прибавляем 1. Получается 1, 2, 3.',
+        dk: 'Начинаем с i = 1, работаем, пока i <= 3, после каждого круга прибавляем 1. Получается 1, 2, 3.'
+      }
+    });
+
+    var pTok = py ? ['for i in range(3):', '    print("Ура")', 'print("Конец")', '    print("Конец")']
+      : ['for (let i = 0; i < 3; i++) {', '  console.log("Ура");', '}', 'console.log("Конец");', '  console.log("Конец");'];
+    var pBad = pTok[pTok.length - 1];
+    steps.push({
+      id: 'parsons', kind: 'parsons', tag: 'Собери из блоков', why: 'parsons', novice: true, card: null, lines: true,
+      title: 'Собери программу',
+      lead: 'Собери программу: три раза Ура, а в самом конце один раз Конец. Одна строка лишняя.',
+      tokens: pTok, solutions: [pTok.slice(0, pTok.length - 1)],
+      tipIf: (function () { var o = {}; o[pBad] = py ? 'У этой строки есть отступ — значит, она внутри цикла, и Конец выведется на каждом круге.' : 'Эта строка стоит внутри цикла — Конец выведется на каждом круге.'; return o; })(),
+      failMsg: function (r) { return r.wrongAt === 0 ? 'Начни со строки с for.' : 'Порядок такой: строка с for, команда внутри цикла, а Конец — после цикла.'; },
+      okText: py ? 'Строка с отступом повторяется. Строка без отступа выполняется один раз, после цикла.' : 'То, что внутри фигурных скобок, повторяется. То, что после них, выполняется один раз.',
+      hint: 'Сначала строка с for. Внутри цикла — вывод Ура. После цикла — вывод Конец.'
+    });
+
+    steps.push(Object.assign({ id: 'fill', novice: true }, defs['f-fill']));
+
+    steps.push({
+      id: 'modify', kind: 'code', mode: 'modify', tag: 'Измени', why: 'modify',
+      title: 'Больше повторов',
+      prompt: 'Программа выводит Привет три раза. Измени одно число так, чтобы она вывела Привет пять раз.',
+      starter: forN(3, show('"Привет"')), expect: rep('Привет', 5),
+      unchangedMsg: 'Поменяй число повторов в строке с for — и запусти снова.',
+      validate: function (out, code) {
+        var r = k.outOk(out, rep('Привет', 5)); if (!r.ok) return r;
+        return needFor(code, 1, 'Не добавляй команды вывода. Измени число в строке с for.');
+      },
+      hints: ['Число повторов стоит в строке с for.', 'Сейчас там 3, а нужно 5.', forHeadN(5)],
+      solution: forN(5, show('"Привет"'))
+    });
+
+    steps.push(Object.assign({ id: 'debug1' }, defs['f-debug-syntax']));
+    steps.push(Object.assign({ id: 'debug2' }, defs['f-debug-off']));
+    steps.push(Object.assign({ id: 'make1' }, defs['f-write-hello'], {
+      prompt: 'Теперь сам. Редактор пуст. Выведи слово Привет четыре раза, каждое на своей строке. Используй цикл for.'
+    }));
+    steps.push(Object.assign({ id: 'make2' }, defs['f-write-sum'], {
+      simple: {
+        text: 'total — это копилка. Сначала в ней 0. На каждом круге ты кладёшь туда очередное число: 1, потом 2, потом 3, 4 и 5. В конце заглядываешь в копилку — там 15.',
+        code: prog(asg('total', '0'), set('total', 'total + 1'), set('total', 'total + 2')),
+        after: 'Это два первых круга, записанные вручную. Цикл делает то же самое сам, подставляя вместо числа счётчик i.'
+      }
+    }));
+
+    steps.push({
+      id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval',
+      title: 'Проверка без подсказок',
+      lead: 'Пять вопросов по памяти. Перед ответом отметь, насколько ты уверен.',
+      questions: [qs['f-q-count'], qs['f-q-first'], qs['f-q-range'], qs['f-q-why'], qs['f-q-total']]
+    });
+
+    steps.push({
+      id: 'explain', kind: 'explain', tag: 'Объясни', why: 'selfexp', noteKey: 'explain-for',
+      title: 'Объясни своими словами',
+      prompt: 'Объясни другу по шагам: что происходит на каждом круге и что программа выведет в конце?',
+      code: prog(asg('total', '0'), forR(1, 3, set('total', 'total + i')), show('total')), min: 40,
+      model: 'Сначала в total лежит 0. Цикл делает три круга, счётчик i принимает значения 1, 2 и 3. На каждом круге к total прибавляется i: получается 1, потом 3, потом 6. После цикла программа выводит total — на экране будет 6.'
+    });
+
+    steps.push({
+      id: 'done', kind: 'done', tag: 'Готово', title: 'Цикл for освоен', rosetta: false,
+      lead: 'Теперь у тебя два цикла: while — когда повторяешь «пока…», и for — когда знаешь число повторов. Вместе с переменной-копилкой это уже настоящие вычисления.'
+    });
+
+    var cards = Object.assign({}, defs, qs);
+    return { id: 'for', title: 'Цикл for: повтори N раз', day: 5, minutes: 20, steps: steps, cards: cards, lang: lang };
+  }
+
+  var BUILDERS = { hello: buildHello, vars: buildVars, cond: buildCond, loops: buildLoops, 'for': buildFor };
   function build(lang, id) { return (BUILDERS[id] || buildHello)(lang); }
   // все карточки повторения всех уроков для языка (id карточек уникальны между уроками)
   function allCards(lang) {
