@@ -57,7 +57,7 @@
     var code = e && e.code || '';
     if (code === 'auth/popup-blocked') return 'Браузер заблокировал окно входа. Разреши всплывающие окна для этого сайта и нажми «Войти» ещё раз.';
     if (code === 'auth/unauthorized-domain') return 'Адрес этого сайта не добавлен в настройки входа (Firebase → Authentication → Settings → Authorized domains).';
-    if (code === 'auth/operation-not-allowed') return 'Вход через Google ещё не включён в проекте Firebase (Authentication → Sign-in method).';
+    if (code === 'auth/operation-not-allowed' || code === 'auth/configuration-not-found') return 'Вход через Google ещё не включён в проекте Firebase (Authentication → Sign-in method).';
     if (code === 'auth/network-request-failed' || code === 'offline') return 'Нет связи с интернетом. Прогресс сохранён на устройстве и уйдёт в облако, когда связь появится.';
     if (code === 'auth' || code === 'auth/user-token-expired') return 'Вход устарел. Выйди и войди заново.';
     if (code === 'denied') return 'Облако отклонило запись. Выйди и войди заново.';

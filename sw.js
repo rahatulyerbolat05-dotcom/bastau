@@ -2,7 +2,7 @@
 'use strict';
 var SHELL = 'bastau-shell-v1';
 var RUNTIME = 'bastau-pyodide-v1';
-var FILES = ['./', 'index.html', 'css/app.css?v=23', 'js/core.js?v=23', 'js/store.js?v=23', 'js/firebase-config.js?v=23', 'js/cloud.js?v=23', 'js/account.js?v=23', 'js/ui.js?v=23', 'js/runner.js?v=23', 'js/editor.js?v=23', 'js/course.js?v=23', 'js/steps.js?v=23', 'js/examples-data.js?v=23', 'js/app.js?v=23', 'js/py-worker.js?v=23', 'js/js-worker.js?v=23', 'manifest.webmanifest', 'icon.svg'];
+var FILES = ['./', 'index.html', 'css/app.css?v=24', 'js/core.js?v=24', 'js/store.js?v=24', 'js/firebase-config.js?v=24', 'js/cloud.js?v=24', 'js/account.js?v=24', 'js/ui.js?v=24', 'js/runner.js?v=24', 'js/editor.js?v=24', 'js/course.js?v=24', 'js/steps.js?v=24', 'js/examples-data.js?v=24', 'js/app.js?v=24', 'js/py-worker.js?v=24', 'js/js-worker.js?v=24', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(SHELL).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));

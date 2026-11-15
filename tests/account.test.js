@@ -232,6 +232,7 @@ test('ошибки входа объясняются по-человечески
     ['auth/popup-blocked', /всплывающие окна/],
     ['auth/unauthorized-domain', /Authorized domains/],
     ['auth/operation-not-allowed', /не включён/],
+    ['auth/configuration-not-found', /не включён/],
     ['auth/network-request-failed', /Нет связи/],
     ['auth/internal-error', /auth\/internal-error/]
   ];
