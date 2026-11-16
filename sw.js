@@ -2,7 +2,7 @@
 'use strict';
 var SHELL = 'bastau-shell-v1';
 var RUNTIME = 'bastau-pyodide-v1';
-var FILES = ['./', 'index.html', 'css/app.css?v=25', 'js/core.js?v=25', 'js/store.js?v=25', 'js/firebase-config.js?v=25', 'js/cloud.js?v=25', 'js/account.js?v=25', 'js/ui.js?v=25', 'js/runner.js?v=25', 'js/editor.js?v=25', 'js/course.js?v=25', 'js/steps.js?v=25', 'js/examples-data.js?v=25', 'js/app.js?v=25', 'js/py-worker.js?v=25', 'js/js-worker.js?v=25', 'manifest.webmanifest', 'icon.svg'];
+var FILES = ['./', 'index.html', 'css/app.css?v=28', 'js/core.js?v=28', 'js/store.js?v=28', 'js/firebase-config.js?v=28', 'js/cloud.js?v=28', 'js/account.js?v=28', 'js/ui.js?v=28', 'js/runner.js?v=28', 'js/editor.js?v=28', 'js/course.js?v=28', 'js/steps.js?v=28', 'js/examples-data.js?v=28', 'js/media.js?v=28', 'js/arch-logic.js?v=28', 'js/arch-course.js?v=28', 'js/arch.js?v=28', 'js/app.js?v=28', 'js/py-worker.js?v=28', 'js/js-worker.js?v=28', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(SHELL).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));

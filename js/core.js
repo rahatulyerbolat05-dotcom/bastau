@@ -525,6 +525,38 @@
     return clone(pickStable(p, q));
   }
 
+  /* Направление «Архитектура» (state.arch):
+       days  — { '1': { b: { concept: мс, building: мс, … }, quiz: { ok, total } } } — блоки дня с моментом первого выполнения
+       fav   — { id: { on, u } } — избранное «Насмотренности»
+       items — { id: { id, kind, u, del?, … } } — записи пользователя: практика, скетчи, проекты, разбор города, идеи, люди
+       marks — { имя: мс } — отметки вроде «банк идей пересмотрен»
+     Запись с большей отметкой u новее; удаление — запись с del: true (иначе удалённое возвращалось бы с другого устройства). */
+  function keysOf(p, q) { var o = {}; Object.keys(p || {}).concat(Object.keys(q || {})).forEach(function (k) { o[k] = true; }); return Object.keys(o).sort(); }
+  function newer(p, q) {
+    if (!p || !q) return clone(p || q);
+    if ((p.u || 0) !== (q.u || 0)) return clone((p.u || 0) > (q.u || 0) ? p : q);
+    return clone(pickStable(p, q));
+  }
+  function mergeArch(x, y) {
+    if (!x && !y) return null;
+    x = x || {}; y = y || {};
+    var out = { on: !!(x.on || y.on), startedAt: minPos(x.startedAt, y.startedAt), days: {}, fav: {}, items: {}, marks: {} };
+    keysOf(x.days, y.days).forEach(function (d) {
+      var p = (x.days || {})[d] || {}, q = (y.days || {})[d] || {}, day = { b: {} };
+      keysOf(p.b, q.b).forEach(function (k) { var t = minPos((p.b || {})[k], (q.b || {})[k]); if (t) day.b[k] = t; });
+      if (p.quiz || q.quiz) day.quiz = clone(p.quiz && q.quiz ? pickStable(p.quiz, q.quiz) : (p.quiz || q.quiz));
+      if (Object.keys(day.b).length || day.quiz) out.days[d] = day;
+    });
+    keysOf(x.fav, y.fav).forEach(function (k) { out.fav[k] = newer((x.fav || {})[k], (y.fav || {})[k]); });
+    keysOf(x.items, y.items).forEach(function (k) { out.items[k] = newer((x.items || {})[k], (y.items || {})[k]); });
+    keysOf(x.marks, y.marks).forEach(function (k) { out.marks[k] = Math.max((x.marks || {})[k] || 0, (y.marks || {})[k] || 0); });
+    return out;
+  }
+  function archHasProgress(a) {
+    if (!a) return false;
+    return Object.keys(a.days || {}).length > 0 || Object.keys(a.items || {}).some(function (k) { return !a.items[k].del; });
+  }
+
   function mergeState(a, b) {
     if (!b) return clone(a);
     var ea = a.epoch || 0, eb = b.epoch || 0;
@@ -581,6 +613,9 @@
     var pw = fa !== fb ? prefs(fa > fb ? a : b) : pickStable(prefs(a), prefs(b));
     out.lang = pw.lang; out.level = pw.level; out.theme = pw.theme; out.prefsAt = Math.max(a.prefsAt || 0, b.prefsAt || 0);
 
+    var arch = mergeArch(a.arch, b.arch);
+    if (arch) out.arch = arch; else delete out.arch;
+
     out.welcomed = !!(a.welcomed || b.welcomed);
     out.created = minPos(a.created, b.created) || a.created || b.created || 0;
     out.epoch = ea;
@@ -596,6 +631,7 @@
   function hasProgress(s) {
     if (!s) return false;
     if (Object.keys(s.cards || {}).length) return true;
+    if (archHasProgress(s.arch)) return true;
     return Object.keys(s.lessons || {}).some(function (k) { var l = s.lessons[k]; return l && (l.done || (l.doneSteps || []).length); });
   }
 
@@ -613,6 +649,17 @@
       if (!c || typeof c.stage !== 'number' || typeof c.due !== 'number' || c.stage < 0 || c.stage >= INTERVALS.length) ok = false;
     });
     s.days.forEach(function (d) { if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) ok = false; });
+    if (s.arch !== undefined && s.arch !== null) {
+      var isObj = function (o) { return !!o && typeof o === 'object' && !Array.isArray(o); };
+      if (!isObj(s.arch)) return false;
+      ['days', 'fav', 'items', 'marks'].forEach(function (k) { if (s.arch[k] !== undefined && !isObj(s.arch[k])) ok = false; });
+      if (ok) {
+        Object.keys(s.arch.days || {}).forEach(function (d) { var day = s.arch.days[d]; if (!isObj(day) || (day.b !== undefined && !isObj(day.b))) ok = false; });
+        var ids = Object.keys(s.arch.items || {});
+        if (ids.length > 5000) ok = false;
+        ids.forEach(function (id) { var it = s.arch.items[id]; if (!isObj(it) || typeof it.kind !== 'string' || typeof it.u !== 'number') ok = false; });
+      }
+    }
     return ok;
   }
 
@@ -624,6 +671,6 @@
     normOut: normOut, checkOutput: checkOutput, fillCheck: fillCheck, parsonsCheck: parsonsCheck, fixCurly: fixCurly,
     explainError: explainError, diagnose: diagnose, friendlyError: friendlyError, bareCode: bareCode, esc: esc, highlight: highlight,
     icsDaily: icsDaily, validateState: validateState,
-    mergeState: mergeState, cloudView: cloudView, sameCloud: sameCloud, hasProgress: hasProgress, stable: stable
+    mergeState: mergeState, mergeArch: mergeArch, cloudView: cloudView, sameCloud: sameCloud, hasProgress: hasProgress, stable: stable
   };
 });

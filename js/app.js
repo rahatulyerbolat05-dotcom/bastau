@@ -261,6 +261,31 @@
     mountCurrent();
   }
 
+  /* ---------- одиночная задача (вне урока) ---------- */
+  function openTask(step, lang, onDone) {
+    var shell = createShell({ title: step.title, onClose: function () { renderTab(); } });
+    var finished = false;
+    shell.setProgress(0, 1, step.tag || 'Задача');
+    shell.setInfo(null);
+    if (lang === 'py') R.preload('py');
+    var api = {
+      lang: lang, review: false,
+      setPrimary: shell.setPrimary, setSecondary: shell.setSecondary, banner: shell.banner, clearBanner: shell.clearBanner,
+      cleanup: shell.addCleanup, summary: function () { return {}; }, confetti: confetti, offerSkip: function () { },
+      finish: function (result) {
+        if (finished) return; finished = true;
+        var ta = shell.body.querySelector('.ed-ta');
+        // решение, вставленное кнопкой «Показать решение», своей работой не считается
+        if (!result.revealed && onDone) onDone(ta ? ta.value : '');
+        S.touchDay(); S.save();
+        shell.setProgress(1, 1, 'Готово');
+        shell.setPrimary({ label: 'Готово', onClick: function () { shell.close(); }, focus: true });
+      }
+    };
+    try { window.Steps.mount(step, shell.body, api); }
+    catch (e) { shell.banner({ kind: 'bad', title: 'Не удалось открыть задачу', text: String(e && e.message || e) }); shell.setPrimary({ label: 'Закрыть', onClick: function () { shell.close(); } }); }
+  }
+
   /* ---------- повторение ---------- */
   function openReview() {
     var lang = S.get().lang, defs = cardDefs(lang);
@@ -400,7 +425,9 @@
     clear(main).appendChild(h('div', { class: 'page' },
       h('header', { class: 'large-title' }, h('div', null, h('div', { class: 'overline', text: cap(fmtDate(Date.now(), { weekday: 'long', day: 'numeric', month: 'long' })) }), h('h1', { text: 'Сегодня' })), streakBtn),
       otherLangCard(st),
-      hero, reviewCard,
+      hero,
+      window.Arch ? window.Arch.todayCard(go) : null,
+      reviewCard,
       A && A.state().status === 'out' && C.hasProgress(st) ? h('button', { class: 'card tap', onclick: function () { go('progress'); } },
         h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('user', 22)),
           h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Сохрани прогресс в аккаунте' }), h('div', { class: 'row-s', text: 'Сейчас он хранится только на этом устройстве' })),
@@ -636,10 +663,12 @@
     clear(main).appendChild(h('div', { class: 'page' },
       h('header', { class: 'large-title' }, h('div', null, h('h1', { text: 'Прогресс' }))),
       accountCard(),
+      h('h2', { class: 'section-h', text: 'Программирование' }),
       h('div', { class: 'tiles' },
         tile(String(sk.count), plural(sk.count, ['день', 'дня', 'дней']) + ' в серии'),
         tile(String(Math.round(S.minutesWeek())), 'мин за 7 дней'),
         tile(cs.mastered + ' / ' + cs.total, 'карточек освоено')),
+      window.Arch ? window.Arch.progressCard(go) : null,
       h('h2', { class: 'section-h', text: 'Можно ли доверять своей уверенности' }),
       h('section', { class: 'card' }, calRow('Уверен', cal.sure), calRow('Скорее да', cal.maybe), calRow('Угадываю', cal.guess), h('p', { class: 'muted small', text: calText })),
       h('h2', { class: 'section-h', text: 'Почему так учим' }),
@@ -740,7 +769,10 @@
   function renderTab() {
     renderTabs();
     try {
-      if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'examples') renderExamples(); else if (tab === 'progress') renderProgress(); else renderToday();
+      var inArch = tab === 'today' && window.Arch && exSub && exSub.split('/')[0] === 'arch';
+      if (window.Arch && !inArch) window.Arch.leave();
+      if (inArch) window.Arch.render(main, exSub.split('/').slice(1), { go: go, openTask: openTask });
+      else if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'examples') renderExamples(); else if (tab === 'progress') renderProgress(); else renderToday();
     } catch (e) { renderFail(e); }
   }
   // Если вкладка не нарисовалась — показываем причину на экране, а не молчим.
@@ -772,7 +804,9 @@
   function parseHash() {
     var parts = (location.hash || '').replace('#', '').split('/');
     var t = TABS.some(function (x) { return x[0] === parts[0]; }) ? parts[0] : 'today';
-    return { tab: t, sub: t === 'examples' && parts[1] ? parts[1] : null };
+    // подстраницы: #examples/<программа> и #today/arch/… (направление «Архитектура»)
+    var sub = t === 'examples' && parts[1] ? parts[1] : (t === 'today' && parts[1] === 'arch' ? parts.slice(1).join('/') : null);
+    return { tab: t, sub: sub };
   }
   function go(t, sub) {
     tab = t; exSub = sub || null;
@@ -837,6 +871,6 @@
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* офлайн-режим недоступен — не критично */ }); });
   }
 
-  window.__bastau = { openLesson: openLesson, openReview: openReview, go: go, course: course };
+  window.__bastau = { openLesson: openLesson, openReview: openReview, openTask: openTask, go: go, course: course };
   start();
 })();
