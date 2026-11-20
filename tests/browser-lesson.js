@@ -5,7 +5,8 @@ window.__e2e = async function (lang, level, lessonId) {
   const t = window.__t, { $, $$, sleep, waitFor, clickPrimary, step, banner, setCode, run, primary } = t;
   const out = [];
   const st = Store.get();
-  st.lang = lang; st.level = level || 'new'; st.welcomed = true; st.lessons[lessonId + ':' + lang] = { done: false, doneSteps: [], results: {}, startedAt: null, doneAt: null };
+  st.lang = lang; st.level = level || 'new'; st.welcomed = true; const keyLang = __bastau.course(lang, lessonId).keyLang || lang;
+  st.lessons[lessonId + ':' + keyLang] = { done: false, doneSteps: [], results: {}, startedAt: null, doneAt: null };
   Store.save(); __bastau.go('today'); await sleep(300);
   const c = __bastau.course(lang, lessonId);
   const visible = c.steps.filter(s => !(s.novice && st.level === 'pro'));
@@ -41,6 +42,16 @@ window.__e2e = async function (lang, level, lessonId) {
         if (lessonId === 'hello' && s.id === 'make2') code = lang === 'py' ? 'print("Привет!")\nprint("Меня зовут Ерболат")' : 'console.log("Привет!");\nconsole.log("Меня зовут Ерболат");';
         setCode(code); await run(); await waitFor(() => $('.banner.ok'), 5000, 'code ok:' + s.id); await clickPrimary(); break;
       }
+      case 'mcq': {
+        $$('.opt').find(b => b.textContent.trim() === s.options.find(o => o.correct).text.trim()).click();
+        $$('.conf .chip').find(b => b.textContent === 'Уверен').click();
+        await clickPrimary(); await waitFor(() => $('.banner'), 3000, 'mcq answered'); await clickPrimary(); break;
+      }
+      case 'html': {
+        // стартовая разметка (если есть) не должна проходить, решение — должно
+        if (s.starter) { primary().click(); await waitFor(() => $('.banner.bad'), 3000, 'html starter must fail:' + s.id); }
+        setCode(s.solution); await sleep(50); primary().click(); await waitFor(() => $('.banner.ok'), 3000, 'html ok:' + s.id); await clickPrimary(); break;
+      }
       case 'quiz': {
         for (const q of s.questions) {
           $$('.opt').find(b => b.textContent.trim() === q.options.find(o => o.correct).text.trim()).click();
@@ -61,7 +72,7 @@ window.__e2e = async function (lang, level, lessonId) {
     await sleep(350);
   }
   await sleep(500);
-  const L = Store.get().lessons[lessonId + ':' + lang];
-  return { steps: out.join(', '), done: L.done, doneSteps: L.doneSteps.length, expected: visible.length, cards: Object.keys(Store.get().cards).filter(k => k.indexOf(lang + ':') === 0).length, jsErrors: errors };
+  const L = Store.get().lessons[lessonId + ':' + keyLang];
+  return { steps: out.join(', '), done: L.done, doneSteps: L.doneSteps.length, expected: visible.length, cards: Object.keys(Store.get().cards).filter(k => k.indexOf(keyLang + ':') === 0).length, jsErrors: errors };
 };
 'e2e loaded';

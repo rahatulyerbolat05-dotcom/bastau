@@ -443,7 +443,35 @@
     }
     return out;
   }
+  // HTML: теги — ключевые слова, атрибуты — как функции, значения — строки, комментарии — серым. Всё экранируется.
+  function highlightHtml(code) {
+    var s = String(code), out = '', i = 0, n = s.length;
+    while (i < n) {
+      if (s.slice(i, i + 4) === '<!--') {
+        var e = s.indexOf('-->', i + 4); e = e === -1 ? n : e + 3;
+        out += '<span class="t-com">' + esc(s.slice(i, e)) + '</span>'; i = e; continue;
+      }
+      if (s[i] === '<' && /[a-zA-Z\/!]/.test(s[i + 1] || '')) {
+        var j = i + 1; while (j < n && /[\/!a-zA-Z0-9-]/.test(s[j])) j++;
+        out += '<span class="t-kw">' + esc(s.slice(i, j)) + '</span>'; i = j;
+        while (i < n && s[i] !== '>' && s[i] !== '<') {
+          if (s[i] === '"' || s[i] === "'") {
+            var q = s[i], k = s.indexOf(q, i + 1); k = k === -1 ? n : k + 1;
+            out += '<span class="t-str">' + esc(s.slice(i, k)) + '</span>'; i = k;
+          } else if (/[a-zA-Z_:-]/.test(s[i])) {
+            var m = i; while (m < n && /[a-zA-Z0-9_:-]/.test(s[m])) m++;
+            out += '<span class="t-fn">' + esc(s.slice(i, m)) + '</span>'; i = m;
+          } else { out += esc(s[i]); i++; }
+        }
+        if (s[i] === '>') { out += '<span class="t-kw">&gt;</span>'; i++; }
+        continue;
+      }
+      out += esc(s[i]); i++;
+    }
+    return out;
+  }
   function highlight(code, lang) {
+    if (lang === 'html') return highlightHtml(code);
     return String(code).split('\n').map(function (l) { return highlightLine(l, lang); }).join('\n');
   }
 
@@ -613,6 +641,11 @@
     var pw = fa !== fb ? prefs(fa > fb ? a : b) : pickStable(prefs(a), prefs(b));
     out.lang = pw.lang; out.level = pw.level; out.theme = pw.theme; out.prefsAt = Math.max(a.prefsAt || 0, b.prefsAt || 0);
 
+    // проекты песочницы: новее побеждает, удаление — «надгробие»
+    var pk = keysOf(a.projects, b.projects);
+    if (pk.length) { out.projects = {}; pk.forEach(function (id) { out.projects[id] = newer((a.projects || {})[id], (b.projects || {})[id]); }); }
+    else delete out.projects;
+
     var arch = mergeArch(a.arch, b.arch);
     if (arch) out.arch = arch; else delete out.arch;
 
@@ -632,10 +665,12 @@
     if (!s) return false;
     if (Object.keys(s.cards || {}).length) return true;
     if (archHasProgress(s.arch)) return true;
+    if (Object.keys(s.projects || {}).some(function (k) { return s.projects[k] && !s.projects[k].del; })) return true;
     return Object.keys(s.lessons || {}).some(function (k) { var l = s.lessons[k]; return l && (l.done || (l.doneSteps || []).length); });
   }
 
   /* ---------- проверка импортируемого прогресса ---------- */
+  var PROJECT_MAX = 200, PROJECT_CODE_MAX = 20000;
   function validateState(s) {
     if (!s || typeof s !== 'object' || Array.isArray(s)) return false;
     if (s.v !== 1) return false;
@@ -649,6 +684,17 @@
       if (!c || typeof c.stage !== 'number' || typeof c.due !== 'number' || c.stage < 0 || c.stage >= INTERVALS.length) ok = false;
     });
     s.days.forEach(function (d) { if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) ok = false; });
+    if (s.projects !== undefined && s.projects !== null) {
+      if (typeof s.projects !== 'object' || Array.isArray(s.projects)) return false;
+      var pids = Object.keys(s.projects);
+      if (pids.length > PROJECT_MAX) return false;
+      pids.forEach(function (id) {
+        var p = s.projects[id];
+        if (!p || typeof p !== 'object' || typeof p.u !== 'number') { ok = false; return; }
+        if (p.del) return;
+        if (typeof p.name !== 'string' || p.name.length > 80 || typeof p.code !== 'string' || p.code.length > PROJECT_CODE_MAX || ['py', 'js', 'html'].indexOf(p.lang) === -1) ok = false;
+      });
+    }
     if (s.arch !== undefined && s.arch !== null) {
       var isObj = function (o) { return !!o && typeof o === 'object' && !Array.isArray(o); };
       if (!isObj(s.arch)) return false;
@@ -670,7 +716,7 @@
     streak: streak, weekStrip: weekStrip,
     normOut: normOut, checkOutput: checkOutput, fillCheck: fillCheck, parsonsCheck: parsonsCheck, fixCurly: fixCurly,
     explainError: explainError, diagnose: diagnose, friendlyError: friendlyError, bareCode: bareCode, esc: esc, highlight: highlight,
-    icsDaily: icsDaily, validateState: validateState,
+    icsDaily: icsDaily, validateState: validateState, PROJECT_MAX: PROJECT_MAX, PROJECT_CODE_MAX: PROJECT_CODE_MAX,
     mergeState: mergeState, mergeArch: mergeArch, cloudView: cloudView, sameCloud: sameCloud, hasProgress: hasProgress, stable: stable
   };
 });

@@ -174,7 +174,7 @@ for (const lang of LANGS) {
         assert.equal(Core.normOut(r.out), Core.normOut(s.expected), l.id + '/' + s.id + ': ожидание не совпало с реальным выводом');
       });
       // во вступлении показан «экран» — он тоже должен быть правдой
-      c.steps.filter(s => s.kind === 'intro').forEach(s => {
+      if (c.stepLang !== 'html') c.steps.filter(s => s.kind === 'intro' && s.flow).forEach(s => {
         assert.equal(Core.normOut(run(lang, s.flow.code).out), Core.normOut(s.flow.out), l.id + '/intro');
       });
     }

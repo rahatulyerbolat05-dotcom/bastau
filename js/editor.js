@@ -5,7 +5,8 @@
 
   var SYMBOLS = {
     py: ['"', "'", '(', ')', ':', '=', '<', '>', '+', '-', ',', '[', ']', '#', '.'],
-    js: ['"', "'", '(', ')', '{', '}', ';', '=', '<', '>', '+', '-', ',', '[', ']', '.']
+    js: ['"', "'", '(', ')', '{', '}', ';', '=', '<', '>', '+', '-', ',', '[', ']', '.'],
+    html: ['<', '>', '/', '"', '=', '!', '-', '#', '.', ':']
   };
 
   function createEditor(opts) {
@@ -36,12 +37,12 @@
       for (var i = 1; i <= n; i++) out += '<span' + (i === errLine ? ' class="err"' : '') + '>' + i + '</span>';
       gutter.innerHTML = out;
     }
-    var INDENT = lang === 'py' ? '    ' : '  ';
+    var INDENT = lang === 'py' ? '    ' : '  '; // HTML — тоже 2 пробела
     // отступ для новой строки: как у текущей, плюс один уровень после «:» (Python) или «{» (JavaScript)
     function nextIndent(before) {
       var line = before.slice(before.lastIndexOf('\n') + 1);
       var ind = (/^[ \t]*/.exec(line) || [''])[0];
-      var opens = lang === 'py' ? /:\s*(#.*)?$/.test(line) : /[{(\[]\s*$/.test(line);
+      var opens = lang === 'py' ? /:\s*(#.*)?$/.test(line) : lang === 'html' ? /<([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?>\s*$/.test(line) && !/<\/|\/>\s*$|<(br|img|input|meta|link|hr)\b/i.test(line) : /[{(\[]\s*$/.test(line);
       return ind + (opens ? INDENT : '');
     }
     ta.addEventListener('input', function (e) {

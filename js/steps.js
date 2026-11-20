@@ -130,7 +130,7 @@
 
   /* ---------- intro ---------- */
   function mountIntro(step, body, api) {
-    var flow = h('div', { class: 'flow', 'aria-hidden': 'true' },
+    var flow = !step.flow ? null : h('div', { class: 'flow', 'aria-hidden': 'true' },
       h('div', { class: 'flow-node' }, h('div', { class: 'flow-cap', text: 'Ты пишешь' }), codeBlock(step.flow.code, api.lang)),
       h('div', { class: 'flow-arrow' }, icon('chevron', 20)),
       h('div', { class: 'flow-node mid' }, h('div', { class: 'flow-cap', text: 'Компьютер' }), h('div', { class: 'flow-cpu', text: 'читает сверху вниз' })),
@@ -426,6 +426,74 @@
     updateSecondary();
   }
 
+  /* ---------- html: вёрстка с живым просмотром ----------
+     Просмотр — iframe с sandbox без разрешений: скрипты в нём не выполняются, доступа к приложению нет.
+     Проверка — по разобранной разметке (DOMParser ничего не исполняет). */
+  function htmlPreview() {
+    var frame = h('iframe', { class: 'html-frame', title: 'Как выглядит страница', sandbox: '', referrerpolicy: 'no-referrer' });
+    var box = h('div', { class: 'console html-preview' }, h('div', { class: 'con-head' }, h('span', { text: 'Страница' })), frame);
+    return {
+      el: box,
+      show: function (code) {
+        // своё оформление поверх стандартного, чтобы просмотр выглядел аккуратно и в тёмной теме
+        frame.srcdoc = '<!doctype html><meta charset="utf-8"><style>body{font:16px/1.45 system-ui,sans-serif;margin:12px;color:#1c1c1e;background:#fff}img{max-width:100%}</style>' + String(code || '');
+      }
+    };
+  }
+  function parseHtml(code) { return new DOMParser().parseFromString(String(code || ''), 'text/html'); }
+
+  function mountHtml(step, body, api) {
+    var tries = 0, hintsUsed = 0, revealed = false, solved = false, started = Date.now();
+    var ed = window.Editor.create({ lang: 'html', value: step.starter || '', minLines: 6, onRun: check, label: 'Редактор HTML: ' + step.title,
+      onChange: function (v) { clearTimeout(t); t = setTimeout(function () { view.show(v); }, 250); } });
+    var t = null, view = htmlPreview();
+    body.appendChild(h('div', { class: 'codestep' },
+      h('h1', { class: 'step-title', text: step.title }),
+      step.preface && !api.review ? h('p', { class: 'preface' }, icon('bulb', 18), h('span', { text: step.preface })) : null,
+      h('p', { class: 'task' }, step.prompt), ed.el, view.el));
+    view.show(ed.getValue());
+
+    function hintReady() { return tries >= 1 || Date.now() - started > 30000; }
+    function updateSecondary() {
+      if (solved) return;
+      if (api.review) { api.setSecondary({ label: 'Не помню', onClick: reveal }); return; }
+      if (!hintReady()) { api.setSecondary(null); return; }
+      if (hintsUsed < step.hints.length) api.setSecondary({ label: 'Подсказка ' + (hintsUsed + 1) + ' из ' + step.hints.length, icon: 'bulb', onClick: function () { var tx = step.hints[hintsUsed]; hintsUsed++; api.banner({ kind: 'info', title: 'Подсказка ' + hintsUsed, text: tx }); updateSecondary(); } });
+      else api.setSecondary({ label: 'Показать решение', onClick: reveal });
+    }
+    function reveal() {
+      revealed = true; ed.setValue(step.solution); view.show(step.solution);
+      api.banner({ kind: 'info', title: 'Решение вставлено', text: 'Посмотри на страницу и на разметку: какие теги дают такой результат. Это задание вернётся в повторении раньше.' });
+      api.setSecondary(null);
+    }
+    var timer = setInterval(updateSecondary, 2000);
+    api.cleanup(function () { clearInterval(timer); clearTimeout(t); });
+
+    function check() {
+      if (solved) return;
+      var code = ed.getValue();
+      view.show(code);
+      if (!code.trim()) { api.banner({ kind: 'info', title: 'Редактор пуст', text: 'Напиши разметку и нажми «Проверить».' }); ed.focus(); return; }
+      var v;
+      try { v = step.validate(parseHtml(code), code); } catch (e) { v = { ok: false, msg: 'Не получилось разобрать разметку. Проверь, что все теги закрыты.' }; }
+      if (v.ok) {
+        solved = true; haptic(12); ed.setReadOnly(true); api.setSecondary(null);
+        var ok = !revealed && tries === 0 && hintsUsed === 0;
+        api.banner({ kind: 'ok', title: 'Верно', text: (ok ? 'Получилось с первой попытки.' : (revealed ? 'Решено с готовым решением — вернёмся к этому в повторении.' : 'Получилось.')) + (step.after ? ' ' + step.after : '') });
+        api.finish({ correct: ok, tries: tries, hints: hintsUsed, revealed: revealed });
+        return;
+      }
+      tries++;
+      api.banner({ kind: 'bad', title: 'Почти', text: v.msg });
+      api.setPrimary({ label: 'Проверить', icon: 'check', onClick: check });
+      updateSecondary();
+      if (tries >= 3) api.offerSkip();
+    }
+    api.setPrimary({ label: 'Проверить', icon: 'check', onClick: check });
+    setTimeout(function () { ed.focus(); }, 80);
+    updateSecondary();
+  }
+
   /* ---------- mcq (общий для quiz и карточек) ---------- */
   function mcqBlock(q, container, api, onAnswered) {
     var opts = shuffled(q.options);
@@ -435,7 +503,7 @@
     var list = optionList(opts, function (i) { picked = opts[i]; confRow.el.hidden = false; reveal(confRow.el); sync(); });
     container.appendChild(h('div', { class: 'mcq' },
       h('p', { class: 'lead', text: q.q }),
-      q.code ? codeBlock(q.code, api.lang) : null, list.el, confRow.el));
+      q.code ? codeBlock(q.code, q.codeLang || api.lang) : null, list.el, confRow.el));
     function sync() {
       if (answered) return;
       api.setPrimary({ label: 'Ответить', disabled: !(picked && conf), onClick: answer, hint: !picked ? 'Сначала выбери вариант ответа.' : 'Теперь отметь, насколько ты уверен, — три кнопки под вариантами.' });
@@ -590,7 +658,7 @@
   }
   function stat(v, l) { return h('div', { class: 'stat' }, h('div', { class: 'stat-v', text: v }), h('div', { class: 'stat-l', text: l })); }
 
-  var KINDS = { intro: mountIntro, predict: mountPredict, anatomy: mountAnatomy, parsons: mountParsons, fill: mountFill, code: mountCode, mcq: mountMcq, quiz: mountQuiz, explain: mountExplain, plan: mountPlan, done: mountDone };
+  var KINDS = { intro: mountIntro, predict: mountPredict, anatomy: mountAnatomy, parsons: mountParsons, fill: mountFill, code: mountCode, html: mountHtml, mcq: mountMcq, quiz: mountQuiz, explain: mountExplain, plan: mountPlan, done: mountDone };
 
   window.Steps = {
     mount: function (step, body, api) {
@@ -607,6 +675,6 @@
           sm.after ? h('p', { text: sm.after }) : null));
       }
     },
-    consoleView: consoleView, execute: execute, codeBlock: codeBlock
+    consoleView: consoleView, execute: execute, codeBlock: codeBlock, htmlPreview: htmlPreview, parseHtml: parseHtml
   };
 })();

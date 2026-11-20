@@ -17,7 +17,9 @@
   function course(lang, id) { id = id || 'hello'; var k = lang + ':' + id; return courses[k] || (courses[k] = window.Course.build(lang, id)); }
   var defsCache = {};
   function cardDefs(lang) { return defsCache[lang] || (defsCache[lang] = window.Course.allCards(lang)); }
-  function lessonList() { return window.Course.LESSONS; }
+  function lessonList() { return window.Course.LESSONS.filter(function (l) { return !l.track; }); } // программирование
+  function trackLessons(t) { return window.Course.LESSONS.filter(function (l) { return l.track === t; }); }
+  function keyLangOf(lang, id) { return course(lang, id).keyLang || lang; }
   // первый непройденный (и не пропущенный) урок; null — все готовые уроки пройдены
   function currentLessonId(lang) {
     var list = lessonList();
@@ -37,7 +39,8 @@
   }
   function cardsOfLang(lang) {
     var out = {}, all = S.get().cards;
-    Object.keys(all).forEach(function (k) { if (k.indexOf(lang + ':') === 0) out[k] = all[k]; });
+    // карточки языка + общие карточки направлений, которые от языка не зависят (HTML, логика)
+    Object.keys(all).forEach(function (k) { if (k.indexOf(lang + ':') === 0 || k.indexOf('all:') === 0) out[k] = all[k]; });
     return out;
   }
   function humanDue(ms) {
@@ -194,12 +197,14 @@
     var lang = S.get().lang;
     id = id || currentLessonId(lang) || 'hello';
     var c = course(lang, id);
-    var L = S.lesson(lessonKey(lang, id));
+    var keyLang = c.keyLang || lang, stepLang = c.stepLang || lang; // HTML и логика не зависят от языка
+    var L = S.lesson(lessonKey(keyLang, id));
     if (restart) { L.doneSteps = []; L.done = false; L.skipped = false; L.results = {}; L.rev = Date.now(); } // rev: «пройти заново» новее прошлого прохождения на любом устройстве
     if (!L.startedAt) L.startedAt = Date.now();
     var steps = visibleSteps(c);
-    if (lang === 'py') R.preload('py');
-    var shell = createShell({ title: 'День ' + c.day + ' · ' + c.title, onClose: function () { renderTab(); } });
+    if (stepLang === 'py') R.preload('py');
+    var trackT = c.track ? (window.Course.TRACKS.filter(function (t) { return t.id === c.track; })[0] || {}).title : '';
+    var shell = createShell({ title: (trackT ? trackT + ' · ' : '') + 'День ' + c.day + ' · ' + c.title, onClose: function () { renderTab(); } });
     var idx = 0;
     for (var i = 0; i < steps.length; i++) { if (L.doneSteps.indexOf(steps[i].id) === -1) { idx = i; break; } idx = steps.length - 1; }
 
@@ -217,8 +222,8 @@
         if (finished) return; finished = true;
         L.results[step.id] = { correct: false, skipped: true, ms: Date.now() - t0 };
         if (L.doneSteps.indexOf(step.id) === -1) L.doneSteps.push(step.id);
-        if (step.card) S.ensureCard(cardKey(lang, step.card));
-        (step.questions || []).forEach(function (q) { if (q.card) S.ensureCard(cardKey(lang, q.card)); });
+        if (step.card) S.ensureCard(cardKey(keyLang, step.card));
+        (step.questions || []).forEach(function (q) { if (q.card) S.ensureCard(cardKey(keyLang, q.card)); });
         S.touchDay(); S.save();
         toast('Шаг пропущен. Он вернётся в повторении.');
         next();
@@ -231,7 +236,7 @@
       shell.setProgress(idx, steps.length);
       shell.setInfo(step.why ? function () { openWhy(step.why); } : null);
       var api = {
-        lang: lang, review: false,
+        lang: stepLang, review: false,
         setPrimary: shell.setPrimary, setSecondary: shell.setSecondary, banner: shell.banner, clearBanner: shell.clearBanner,
         cleanup: shell.addCleanup, summary: summary, confetti: confetti, offerSkip: offerSkip,
         openExamples: function () { shell.close(); setTimeout(function () { go('examples'); }, 350); },
@@ -241,8 +246,8 @@
           result.ms = Date.now() - t0;
           L.results[step.id] = result;
           if (L.doneSteps.indexOf(step.id) === -1) L.doneSteps.push(step.id);
-          if (step.card) S.ensureCard(cardKey(lang, step.card));
-          (result.cards || []).forEach(function (cc) { S.ensureCard(cardKey(lang, cc.id)); });
+          if (step.card) S.ensureCard(cardKey(keyLang, step.card));
+          (result.cards || []).forEach(function (cc) { S.ensureCard(cardKey(keyLang, cc.id)); });
           S.touchDay(); S.save();
           if (o && o.advance) next();
           else shell.setPrimary({ label: idx === steps.length - 1 ? 'Завершить' : 'Дальше', onClick: next, focus: true });
@@ -289,7 +294,8 @@
   /* ---------- повторение ---------- */
   function openReview() {
     var lang = S.get().lang, defs = cardDefs(lang);
-    var due = C.dueCards(cardsOfLang(lang), Date.now()).filter(function (cd) { return defs[cd.id.slice(lang.length + 1)]; });
+    var defOf = function (key) { return defs[key.slice(key.indexOf(':') + 1)]; };
+    var due = C.dueCards(cardsOfLang(lang), Date.now()).filter(function (cd) { return defOf(cd.id); });
     if (!due.length) { toast('Сейчас повторять нечего.'); return; }
     var queue = C.shuffle(due.slice(0, 10).map(function (cd) { return cd.id; }));
     var total = queue.length, completed = 0, requeued = {}, tally = { good: 0, hard: 0, again: 0 };
@@ -300,10 +306,10 @@
     function mountCard() {
       shell.runCleanups(); clear(shell.body); shell.clearBanner(); shell.setSecondary(null);
       if (!queue.length) { return summaryScreen(); }
-      var key = queue[0], def = defs[key.slice(lang.length + 1)], finished = false;
+      var key = queue[0], def = defOf(key), finished = false;
       shell.setProgress(completed, total, 'Карточка ' + Math.min(completed + 1, total) + ' из ' + total);
       var api = {
-        lang: lang, review: true,
+        lang: def.kind === 'html' ? 'html' : lang, review: true,
         setPrimary: shell.setPrimary, setSecondary: shell.setSecondary, banner: shell.banner, clearBanner: shell.clearBanner,
         cleanup: shell.addCleanup, summary: function () { return {}; }, confetti: function () { }, offerSkip: function () { },
         finish: function (result) {
@@ -349,8 +355,52 @@
     return inLessons || Object.keys(st.cards || {}).some(function (k) { return k.indexOf(lang + ':') === 0; });
   }
 
+  /* ---------- направления: HTML, логика, математика ---------- */
+  function trackState(lang, t) {
+    var ls = trackLessons(t.id), next = null, done = 0;
+    ls.forEach(function (l) { var L = S.lesson(lessonKey(keyLangOf(lang, l.id), l.id)); if (L.done) done++; else if (!next) next = l; });
+    return { lessons: ls, next: next, done: done };
+  }
+  function tracksSection(lang) {
+    var rows = window.Course.TRACKS.map(function (t) {
+      var ts = trackState(lang, t);
+      var sub = ts.next ? 'День ' + ts.next.day + ' · ' + ts.next.title : 'Написанные уроки пройдены (' + ts.done + ')';
+      return h('button', { class: 'row tap', onclick: function () { go('today', 'track/' + t.id); } },
+        h('span', { class: 'row-ic' + (ts.next ? ' tint' : '') }, icon(t.icon, 20)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: t.title }), h('div', { class: 'row-s', text: sub })),
+        icon('chevron', 18));
+    });
+    return h('div', { class: 'tracks' }, h('h2', { class: 'section-h', text: 'Направления' }), h('section', { class: 'group' }, rows));
+  }
+  function renderTrack(id) {
+    var lang = S.get().lang, t = window.Course.TRACKS.filter(function (x) { return x.id === id; })[0];
+    if (!t) { go('today'); return; }
+    var ts = trackState(lang, t), n = ts.next;
+    var hero = n ? h('section', { class: 'hero' },
+      h('div', { class: 'hero-top' }, h('span', { class: 'eyebrow', text: 'День ' + n.day }), h('span', { class: 'pill', text: '≈ ' + n.minutes + ' мин' })),
+      h('h2', { class: 'hero-title', text: n.title }),
+      h('button', { class: 'btn primary lg', onclick: function () { openLesson(false, n.id); } }, icon('play', 20), S.lesson(lessonKey(keyLangOf(lang, n.id), n.id)).doneSteps.length ? 'Продолжить' : 'Начать урок'),
+      h('button', { class: 'btn ghost lg', onclick: function () { skipLesson(n.id); } }, 'Пропустить — я это уже умею'))
+      : h('section', { class: 'hero done' }, h('h2', { class: 'hero-title', text: 'Написанные уроки пройдены' }), h('p', { class: 'hero-sub', text: 'Следующие ещё пишутся. Карточки этих уроков приходят в общее повторение.' }));
+    var rows = ts.lessons.map(function (l) {
+      var L = S.lesson(lessonKey(keyLangOf(lang, l.id), l.id));
+      var status = L.done ? (L.skipped ? 'Пропущено · нажми, чтобы пройти' : 'Пройдено · нажми, чтобы пройти заново') : (n && l.id === n.id ? 'Сейчас' : 'Можно открыть');
+      return h('button', { class: 'row tap', onclick: function () { openLesson(!!L.done, l.id); } },
+        h('span', { class: 'row-ic' + (L.done ? ' tint' : '') }, icon(L.done ? 'check' : 'play', 20)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + l.day + ' · ' + l.title }), h('div', { class: 'row-s', text: status })), icon('chevron', 18));
+    }).concat((t.soon || []).map(function (x, i) {
+      return h('div', { class: 'row locked' }, h('span', { class: 'row-ic' }, icon('pencil', 20)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + (ts.lessons.length + i + 1) + ' · ' + x }), h('div', { class: 'row-s', text: 'Урок ещё пишется' })));
+    }));
+    clear(main).appendChild(h('div', { class: 'page' },
+      h('button', { class: 'back-btn', onclick: function () { go('today'); } }, icon('back', 20), 'Сегодня'),
+      h('header', { class: 'large-title' }, h('div', null, h('div', { class: 'overline', text: 'Направление' }), h('h1', { text: t.title }))),
+      h('p', { class: 'lead-sm', text: t.about }), hero,
+      h('h2', { class: 'section-h', text: 'Уроки' }), h('section', { class: 'group' }, rows)));
+  }
+
   function skipLesson(id) {
-    var lang = S.get().lang, L = S.lesson(lessonKey(lang, id)), c = course(lang, id);
+    var lang = S.get().lang, c = course(lang, id), L = S.lesson(lessonKey(c.keyLang || lang, id));
     L.done = true; L.skipped = true; L.doneAt = Date.now(); if (!L.startedAt) L.startedAt = Date.now();
     S.save();
     toast('День ' + c.day + ' пропущен. Он останется в списке — можно открыть в любой момент.');
@@ -373,7 +423,7 @@
       hero = h('section', { class: 'hero done', 'aria-labelledby': 'hero-t' },
         h('div', { class: 'hero-top' }, h('span', { class: 'eyebrow', text: 'День ' + c.day + ' · ' + langName(lang) }), h('span', { class: 'pill ok' }, icon('check', 14), L.skipped ? 'Пропущено' : 'Пройдено')),
         h('h2', { id: 'hero-t', class: 'hero-title', text: c.title }),
-        h('p', { class: 'hero-sub', text: 'Все готовые дни пройдены. Следующие появятся позже — а пока закрепляй повторением.' }),
+        h('p', { class: 'hero-sub', text: 'Все написанные уроки пройдены. Следующие ещё пишутся — а пока закрепляй повторением и занимайся направлениями ниже.' }),
         h('button', { class: 'btn secondary', onclick: function () { openLesson(true, heroId); } }, 'Пройти заново'));
     } else {
       hero = h('section', { class: 'hero', 'aria-labelledby': 'hero-t' },
@@ -415,8 +465,8 @@
         h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + cl.day + ' · ' + cl.title }), h('div', { class: 'row-s', text: status })),
         icon('chevron', 18));
     }).concat(window.Course.ROADMAP.map(function (t, i) {
-      return h('div', { class: 'row locked' }, h('span', { class: 'row-ic' }, icon('lock', 20)),
-        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + (list.length + i + 1) + ' · ' + t }), h('div', { class: 'row-s', text: 'Скоро' })));
+      return h('div', { class: 'row locked' }, h('span', { class: 'row-ic' }, icon('pencil', 20)),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'День ' + (list.length + i + 1) + ' · ' + t }), h('div', { class: 'row-s', text: 'Урок ещё пишется' })));
     }));
 
     var streakBtn = h('button', { class: 'streak' + (sk.alive ? ' alive' : ''), onclick: openStreak, 'aria-label': 'Серия: ' + sk.count + ' ' + plural(sk.count, ['день', 'дня', 'дней']) + '. Подробнее' },
@@ -428,6 +478,7 @@
       hero,
       window.Arch ? window.Arch.todayCard(go) : null,
       reviewCard,
+      tracksSection(lang),
       A && A.state().status === 'out' && C.hasProgress(st) ? h('button', { class: 'card tap', onclick: function () { go('progress'); } },
         h('div', { class: 'row' }, h('span', { class: 'row-ic' }, icon('user', 22)),
           h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: 'Сохрани прогресс в аккаунте' }), h('div', { class: 'row-s', text: 'Сейчас он хранится только на этом устройстве' })),
@@ -500,43 +551,132 @@
 
   /* ---------- вкладка «Песочница» ---------- */
   var sbLang = null;
+  /* ---------- песочница и проекты ---------- */
+  var sbProject = null; // открытый проект
+  var SB_LANGS = [['py', 'Python'], ['js', 'JavaScript'], ['html', 'HTML']];
+  var SB_START = { py: 'print("Hello, World!")', js: 'console.log("Hello, World!");', html: '<h1>Привет!</h1>\n<p>Это моя страница.</p>' };
+  var LANG_LABEL = { py: 'Python', js: 'JavaScript', html: 'HTML' };
+  function projectsMap() { var st = S.get(); if (!st.projects || typeof st.projects !== 'object' || Array.isArray(st.projects)) st.projects = {}; return st.projects; }
+  function projectList() {
+    var p = projectsMap();
+    return Object.keys(p).map(function (k) { return p[k]; }).filter(function (x) { return x && !x.del; })
+      .sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
+  }
+  function openProject() { var p = sbProject && projectsMap()[sbProject]; return p && !p.del ? p : null; }
+  function askName(title, value, onOk) {
+    var input = h('input', { class: 'free', type: 'text', maxlength: '80', value: value || '', 'aria-label': 'Название проекта', autocomplete: 'off' });
+    var err = h('p', { class: 'account-err', role: 'alert', hidden: true });
+    sheet({
+      title: title,
+      body: h('div', { class: 'arch-form' }, input, err),
+      actions: [
+        { label: 'Сохранить', kind: 'primary', onClick: function (close) {
+          var name = input.value.trim();
+          if (!name) { err.hidden = false; err.textContent = 'Придумай название, чтобы потом найти проект.'; input.focus(); return; }
+          close(); onOk(name);
+        } },
+        { label: 'Отмена', kind: 'secondary' }
+      ]
+    });
+    setTimeout(function () { input.focus(); input.select(); }, 60);
+  }
+
   function renderSandbox() {
     var st = S.get();
     if (!sbLang) sbLang = st.lang;
-    var lang = sbLang;
-    var starter = lang === 'py' ? 'print("Hello, World!")' : 'console.log("Hello, World!");';
-    var code = (st.sandbox && st.sandbox[lang]) || starter;
-    var con = window.Steps.consoleView(lang);
+    var lang = sbLang, starter = SB_START[lang];
+    var cur = openProject();
+    if (cur && cur.lang !== lang) { cur = null; sbProject = null; }
+    st.sandbox = st.sandbox || {};
+    var code = typeof st.sandbox[lang] === 'string' && st.sandbox[lang] !== '' ? st.sandbox[lang] : starter;
+    var status = h('span', { class: 'sb-status muted small', role: 'status' });
+    function dirty(v) { return cur ? v !== cur.code : (v.trim() !== '' && v !== starter); }
+    function paintStatus(v) { status.textContent = cur ? (dirty(v) ? 'Есть несохранённые изменения' : 'Сохранено') : (dirty(v) ? 'Черновик не сохранён' : ''); }
+
+    var isHtml = lang === 'html';
+    var view = isHtml ? window.Steps.htmlPreview() : null;
+    var con = isHtml ? null : window.Steps.consoleView(lang);
+    var t = null;
     var ed = window.Editor.create({
       lang: lang, value: code, minLines: 8, label: 'Песочница: редактор кода', onRun: run,
-      onChange: function (v) { st.sandbox = st.sandbox || {}; st.sandbox[lang] = v; S.save(); }
+      onChange: function (v) {
+        st.sandbox[lang] = v; S.save(); paintStatus(v);
+        if (isHtml) { clearTimeout(t); t = setTimeout(function () { view.show(v); }, 250); }
+      }
     });
     var busy = false;
     function run() {
+      if (isHtml) { view.show(ed.getValue()); S.touchDay(); return; }
       if (busy) return; busy = true; runBtn.disabled = true;
       window.Steps.execute(lang, ed.getValue(), con).then(function (r) {
         busy = false; runBtn.disabled = false;
         ed.markError(r.errorLine || 0);
         if (r.curly) toast('Телефон заменил кавычки на «умные» — мы подставили обычные.');
-        S.addSeconds(0); S.touchDay();
+        S.touchDay();
       });
     }
-    var runBtn = h('button', { class: 'btn primary', onclick: run }, icon('play', 20), 'Запустить');
-    var seg = h('div', { class: 'seg', role: 'tablist', 'aria-label': 'Язык' }, [['py', 'Python'], ['js', 'JavaScript']].map(function (o) {
-      return h('button', { role: 'tab', 'aria-selected': o[0] === lang ? 'true' : 'false', class: o[0] === lang ? 'on' : '', onclick: function () { sbLang = o[0]; if (o[0] === 'py') R.preload('py'); renderSandbox(); } }, o[1]);
+    function save(asNew) {
+      var v = ed.getValue();
+      if (v.length > C.PROJECT_CODE_MAX) { toast('Проект слишком большой: больше ' + C.PROJECT_CODE_MAX + ' символов.'); return; }
+      if (cur && !asNew) {
+        cur.code = v; cur.u = Date.now(); S.save(); toast('Проект «' + cur.name + '» сохранён.'); renderSandbox(); return;
+      }
+      if (projectList().length >= C.PROJECT_MAX) { toast('Проектов уже ' + C.PROJECT_MAX + '. Удали ненужные, чтобы сохранить новый.'); return; }
+      askName(asNew ? 'Сохранить копию' : 'Сохранить проект', asNew && cur ? cur.name + ' (копия)' : 'Проект ' + (projectList().length + 1), function (name) {
+        var now = Date.now(), id = 'p' + now.toString(36) + Math.random().toString(36).slice(2, 7);
+        projectsMap()[id] = { id: id, name: name, lang: lang, code: v, at: now, u: now };
+        sbProject = id; S.save(); toast('Проект «' + name + '» сохранён.'); renderSandbox();
+      });
+    }
+    function guard(fn) {
+      if (!dirty(ed.getValue())) { fn(); return; }
+      window.UI.confirmSheet({ title: 'Изменения не сохранены', text: cur ? 'В проекте «' + cur.name + '» есть несохранённые изменения. Если продолжить, они пропадут.' : 'Черновик не сохранён как проект. Если продолжить, он пропадёт.', confirm: 'Продолжить', danger: true, onConfirm: fn });
+    }
+    function openP(p) { guard(function () { sbProject = p.id; sbLang = p.lang; st.sandbox[p.lang] = p.code; S.save(); if (p.lang === 'py') R.preload('py'); renderSandbox(); main.scrollTop = 0; window.scrollTo(0, 0); }); }
+    function newP() { guard(function () { sbProject = null; st.sandbox[lang] = starter; S.save(); renderSandbox(); }); }
+    function delP(p) {
+      window.UI.confirmSheet({ title: 'Удалить проект «' + p.name + '»?', text: 'Проект пропадёт на всех устройствах этого аккаунта. Это нельзя отменить.', confirm: 'Удалить', danger: true, onConfirm: function () {
+        projectsMap()[p.id] = { id: p.id, u: Date.now(), del: true };
+        if (sbProject === p.id) sbProject = null;
+        S.save(); toast('Проект удалён.'); renderSandbox();
+      } });
+    }
+
+    var runBtn = h('button', { class: 'btn primary', onclick: run }, icon('play', 20), isHtml ? 'Обновить' : 'Запустить');
+    var seg = h('div', { class: 'seg', role: 'tablist', 'aria-label': 'Язык' }, SB_LANGS.map(function (o) {
+      return h('button', { role: 'tab', 'aria-selected': o[0] === lang ? 'true' : 'false', class: o[0] === lang ? 'on' : '', onclick: function () {
+        if (o[0] === lang) return;
+        sbLang = o[0]; if (o[0] === 'py') R.preload('py'); renderSandbox();
+      } }, o[1]);
     }));
-    var ideas = (lang === 'py' ? ['print(2 + 2)', 'print("Привет, " + "мир")', 'print("a" * 3)'] : ['console.log(2 + 2);', 'console.log("Привет, " + "мир");', 'console.log("a".repeat(3));']);
-    var chips = h('div', { class: 'chips scroll' }, ideas.map(function (t) {
-      return h('button', { class: 'chip code', text: t, onclick: function () { ed.setValue(t); con.idle(); } });
+    var ideas = lang === 'py' ? ['print(2 + 2)', 'print("Привет, " + "мир")', 'print("a" * 3)'] : lang === 'js' ? ['console.log(2 + 2);', 'console.log("Привет, " + "мир");', 'console.log("a".repeat(3));'] : ['<h2>Подзаголовок</h2>', '<ul>\n  <li>Пункт</li>\n</ul>', '<a href="https://ru.wikipedia.org">Ссылка</a>'];
+    var chips = h('div', { class: 'chips scroll' }, ideas.map(function (x) {
+      return h('button', { class: 'chip code', text: x.split('\n')[0], onclick: function () { ed.setValue(x); if (isHtml) view.show(x); else con.idle(); } });
     }));
+    var list = projectList();
+    var rows = list.map(function (p) {
+      return h('div', { class: 'row arch-rec' + (cur && p.id === cur.id ? ' sb-on' : '') },
+        h('button', { class: 'arch-rec-main', onclick: function () { if (!cur || p.id !== cur.id) openP(p); } },
+          h('span', { class: 'row-ic' + (cur && p.id === cur.id ? ' tint' : '') }, icon(p.lang === 'html' ? 'text' : 'code', 18)),
+          h('div', { class: 'row-main' }, h('div', { class: 'row-t', text: p.name }), h('div', { class: 'row-s', text: LANG_LABEL[p.lang] + ' · ' + fmtDate(p.u, { day: 'numeric', month: 'long' }) + (cur && p.id === cur.id ? ' · открыт' : '') }))),
+        h('button', { class: 'icon-btn', 'aria-label': 'Удалить проект ' + p.name, onclick: function () { delP(p); } }, icon('trash', 18)));
+    });
     clear(main).appendChild(h('div', { class: 'page' },
-      h('header', { class: 'large-title' }, h('div', null, h('h1', { text: 'Песочница' }))),
+      h('header', { class: 'large-title' }, h('div', null, h('div', { class: 'overline', text: cur ? 'Проект' : 'Черновик' }), h('h1', { text: cur ? cur.name : 'Песочница' }))),
       seg,
-      h('p', { class: 'muted', text: 'Свободная практика: пиши что угодно и смотри, что получится. Сломать ничего нельзя.' }),
+      h('p', { class: 'muted', text: isHtml ? 'Верстай страницу — справа она обновляется сама. Скрипты в просмотре не запускаются.' : 'Свободная практика: пиши что угодно и смотри, что получится. Сломать ничего нельзя.' }),
       ed.el,
-      h('div', { class: 'sb-actions' }, runBtn, h('button', { class: 'btn ghost', onclick: function () { ed.setValue(starter); con.idle(); } }, 'Сбросить')),
-      con.el,
-      h('div', { class: 'conf-label', text: 'Попробуй' }), chips));
+      h('div', { class: 'sb-actions' }, runBtn,
+        h('button', { class: 'btn secondary', onclick: function () { save(false); } }, icon('download', 18), cur ? 'Сохранить' : 'Сохранить как проект'),
+        cur ? h('button', { class: 'btn ghost', onclick: function () { save(true); } }, 'Копия') : null,
+        h('button', { class: 'btn ghost', onclick: newP }, 'Новый')),
+      status,
+      isHtml ? view.el : con.el,
+      h('div', { class: 'conf-label', text: 'Попробуй' }), chips,
+      h('h2', { class: 'section-h', text: 'Мои проекты' + (list.length ? ' · ' + list.length : '') }),
+      list.length ? h('section', { class: 'group' }, rows) : h('section', { class: 'card flat' }, h('p', { class: 'muted', text: 'Пока пусто. Напиши что-нибудь и нажми «Сохранить как проект» — он появится здесь и сохранится в аккаунте.' }))));
+    paintStatus(ed.getValue());
+    if (isHtml) view.show(ed.getValue());
   }
 
   /* ---------- вкладка «Примеры» ---------- */
@@ -772,6 +912,7 @@
       var inArch = tab === 'today' && window.Arch && exSub && exSub.split('/')[0] === 'arch';
       if (window.Arch && !inArch) window.Arch.leave();
       if (inArch) window.Arch.render(main, exSub.split('/').slice(1), { go: go, openTask: openTask });
+      else if (tab === 'today' && exSub && exSub.indexOf('track/') === 0) renderTrack(exSub.split('/')[1]);
       else if (tab === 'review') renderReview(); else if (tab === 'sandbox') renderSandbox(); else if (tab === 'examples') renderExamples(); else if (tab === 'progress') renderProgress(); else renderToday();
     } catch (e) { renderFail(e); }
   }
@@ -805,7 +946,7 @@
     var parts = (location.hash || '').replace('#', '').split('/');
     var t = TABS.some(function (x) { return x[0] === parts[0]; }) ? parts[0] : 'today';
     // подстраницы: #examples/<программа> и #today/arch/… (направление «Архитектура»)
-    var sub = t === 'examples' && parts[1] ? parts[1] : (t === 'today' && parts[1] === 'arch' ? parts.slice(1).join('/') : null);
+    var sub = t === 'examples' && parts[1] ? parts[1] : (t === 'today' && (parts[1] === 'arch' || parts[1] === 'track') ? parts.slice(1).join('/') : null);
     return { tab: t, sub: sub };
   }
   function go(t, sub) {

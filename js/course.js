@@ -51,9 +51,23 @@
     { id: 'vars', day: 2, title: 'Переменные и типы данных', minutes: 20 },
     { id: 'cond', day: 3, title: 'Условия: если… иначе', minutes: 20 },
     { id: 'loops', day: 4, title: 'Циклы: повторяй, пока…', minutes: 20 },
-    { id: 'for', day: 5, title: 'Цикл for: повтори N раз', minutes: 20 }
+    { id: 'for', day: 5, title: 'Цикл for: повтори N раз', minutes: 20 },
+    { id: 'lists', day: 6, title: 'Списки: много значений под одним именем', minutes: 20 },
+    { id: 'funcs', day: 7, title: 'Функции: свои команды', minutes: 20 },
+    // другие направления: у них своя нумерация дней и своя страница (track)
+    { id: 'html1', day: 1, title: 'Первая страница: теги', minutes: 15, track: 'html' },
+    { id: 'html2', day: 2, title: 'Списки, ссылки, картинки', minutes: 15, track: 'html' },
+    { id: 'logic1', day: 1, title: 'Закономерности', minutes: 10, track: 'logic' },
+    { id: 'logic2', day: 2, title: 'И, ИЛИ, НЕ', minutes: 10, track: 'logic' },
+    { id: 'math1', day: 1, title: 'Остаток от деления', minutes: 15, track: 'math' },
+    { id: 'math2', day: 2, title: 'Проценты и округление', minutes: 15, track: 'math' }
   ];
-  var ROADMAP = ['Списки', 'Функции'];
+  var ROADMAP = ['Словари и объекты', 'Первый проект: калькулятор сметы'];
+  var TRACKS = [
+    { id: 'html', title: 'HTML и интерфейсы', icon: 'text', about: 'Вёрстка страниц: теги, списки, ссылки, картинки. Результат видно сразу в живом просмотре.', soon: ['Таблицы', 'Формы и кнопки', 'CSS: цвета и шрифты'] },
+    { id: 'logic', title: 'Логические задачи', icon: 'bulb', about: 'Закономерности, условия, перебор вариантов — тренировка головы программиста. Решать в уме, без кода.', soon: ['Перебор вариантов', 'Задачи на взвешивание'] },
+    { id: 'math', title: 'Математика для кода', icon: 'layers', about: 'Только то, что нужно в программировании: остаток, проценты, округление. Задачи решаются кодом на твоём языке.', soon: ['Двоичная система', 'Координаты и площади'] }
+  ];
 
   function buildHello(lang) {
     var py = lang !== 'js';
@@ -1403,7 +1417,544 @@
     return { id: 'for', title: 'Цикл for: повтори N раз', day: 5, minutes: 20, steps: steps, cards: cards, lang: lang };
   }
 
-  var BUILDERS = { hello: buildHello, vars: buildVars, cond: buildCond, loops: buildLoops, 'for': buildFor };
+  /* ======================= День 6: списки ======================= */
+  function buildLists(lang) {
+    var k = kit(lang), py = k.py, asg = k.asg, set = k.set, show = k.show, prog = k.prog;
+    var FR = '["яблоко", "груша", "слива"]';
+    var LEN = function (x) { return py ? 'len(' + x + ')' : x + '.length'; };
+    var ADD = function (x, v) { return py ? x + '.append(' + v + ')' : x + '.push(' + v + ');'; };
+    var each = function (item, list, body) { return (py ? 'for ' + item + ' in ' + list + ':' : 'for (const ' + item + ' of ' + list + ') {') + '\n' + k.ind(body) + (py ? '' : '\n}'); };
+    var needFor = function (code, msg) { return k.has(code, /\bfor\b/) ? { ok: true } : { ok: false, msg: msg || 'Здесь нужен цикл for по списку.' }; };
+
+    var defs = {};
+    defs['ls-fill'] = {
+      kind: 'fill', card: 'ls-fill', tag: 'Заполни пропуски', why: 'completion',
+      title: 'Первый элемент', prompt: 'Выведи первый элемент списка fruits. Впиши номер.',
+      tpl: [k.OUT + '(fruits[', { b: 0 }, '])' + k.END],
+      blanks: [{ accept: ['0'], label: 'номер элемента' }],
+      okText: 'Счёт в списке начинается с нуля: первый элемент — fruits[0].',
+      hintText: 'Номер первого элемента — не единица.'
+    };
+    defs['ls-debug-index'] = {
+      kind: 'code', mode: 'debug', card: 'ls-debug-index', tag: 'Найди ошибку', why: 'debug',
+      title: 'Номера с нуля', prompt: 'Нужно вывести последний элемент — слива. Программа ' + (py ? 'падает с ошибкой' : 'выводит undefined') + '. Исправь номер.',
+      starter: prog(asg('fruits', FR), show('fruits[3]')), expect: 'слива',
+      preface: 'В списке из трёх элементов номера 0, 1 и 2. Номера 3 там просто нет.',
+      hints: ['Сколько элементов в списке и с какого номера начинается счёт?', 'Если номера 0, 1, 2, то последний — 2.', 'Замени fruits[3] на fruits[2].'],
+      solution: prog(asg('fruits', FR), show('fruits[2]'))
+    };
+    defs['ls-debug-add'] = {
+      kind: 'code', mode: 'debug', card: 'ls-debug-add', tag: 'Найди ошибку', why: 'debug',
+      title: 'Как добавить элемент', prompt: 'Программа должна добавить в список киви и вывести его. Но команда добавления неверная. Исправь.',
+      starter: prog(asg('fruits', FR), py ? 'fruits.add("киви")' : 'fruits.add("киви");', show('fruits[3]')), expect: 'киви',
+      hints: ['Прочитай ошибку: у списка нет команды add.', py ? 'В Python элемент в конец списка добавляет append.' : 'В JavaScript элемент в конец списка добавляет push.', 'Замени add на ' + (py ? 'append' : 'push') + '.'],
+      solution: prog(asg('fruits', FR), ADD('fruits', '"киви"'), show('fruits[3]'))
+    };
+    defs['ls-write-each'] = {
+      kind: 'code', mode: 'write', card: 'ls-write-each', tag: 'Напиши сам', why: 'make',
+      title: 'Каждый по очереди', prompt: 'Создай список nums с числами 5, 10 и 15. Выведи каждое число на своей строке с помощью цикла for.',
+      starter: '', expect: '5\n10\n15',
+      validate: function (out, code) {
+        var r = k.outOk(out, '5\n10\n15'); if (!r.ok) return r;
+        if (!k.has(code, /\[\s*5\s*,\s*10\s*,\s*15\s*\]/)) return { ok: false, msg: 'Создай список: ' + asg('nums', '[5, 10, 15]') };
+        if (k.outs(code) > 1) return { ok: false, msg: 'Команда вывода должна быть одна — внутри цикла.' };
+        return needFor(code);
+      },
+      hints: ['Сначала список в квадратных скобках, потом цикл по нему.', 'Цикл по списку: ' + (py ? 'for n in nums:' : 'for (const n of nums) {'), 'Каркас:\n' + prog(asg('nums', '[5, 10, 15]'), each('n', 'nums', show('n')))],
+      solution: prog(asg('nums', '[5, 10, 15]'), each('n', 'nums', show('n')))
+    };
+    defs['ls-write-sum'] = {
+      kind: 'code', mode: 'write', card: 'ls-write-sum', tag: 'Напиши сам', why: 'make',
+      title: 'Сумма покупок', prompt: 'В списке prices лежат цены: 300, 450 и 250. Посчитай сумму в цикле (копилка total) и выведи её.',
+      starter: asg('prices', '[300, 450, 250]') + '\n', expect: '1000',
+      validate: function (out, code) {
+        var r = k.outOk(out, '1000'); if (!r.ok) return r;
+        if (!k.has(code, /total[ \t]*=[ \t]*total[ \t]*\+|total[ \t]*\+=/)) return { ok: false, msg: 'Сумму нужно накопить в цикле: ' + set('total', 'total + p') };
+        return needFor(code);
+      },
+      hints: ['Копилка total начинается с 0.', 'В цикле по prices прибавляй каждую цену к total.', 'Каркас:\n' + prog(asg('total', '0'), each('p', 'prices', set('total', 'total + p')), show('total'))],
+      solution: prog(asg('prices', '[300, 450, 250]'), asg('total', '0'), each('p', 'prices', set('total', 'total + p')), show('total'))
+    };
+
+    var qs = {};
+    qs['ls-q-first'] = { kind: 'mcq', card: 'ls-q-first', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: prog(asg('a', '["А", "Б", "В"]'), show('a[1]')), out: 'Б',
+      options: [{ text: 'Б', correct: true }, { text: 'А' }, { text: 'В' }, { text: 'Ошибка' }], explain: 'Номера начинаются с нуля: a[0] — А, a[1] — Б.' };
+    qs['ls-q-len'] = { kind: 'mcq', card: 'ls-q-len', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: prog(asg('a', '[4, 8, 15, 16]'), show(LEN('a'))), out: '4',
+      options: [{ text: '4', correct: true }, { text: '3' }, { text: '16' }, { text: '43' }], explain: (py ? 'len' : '.length') + ' — количество элементов. Их четыре, хотя последний номер — 3.' };
+    qs['ls-q-last'] = { kind: 'mcq', card: 'ls-q-last', tag: 'Вспомни', why: 'retrieval', q: 'В списке 5 элементов. Какой номер у последнего?',
+      options: [{ text: '4', correct: true }, { text: '5' }, { text: '0' }, { text: '6' }], explain: 'Номера идут 0, 1, 2, 3, 4. Последний на единицу меньше количества.' };
+    qs['ls-q-add'] = { kind: 'mcq', card: 'ls-q-add', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: prog(asg('a', '[1, 2]'), ADD('a', '3'), show(LEN('a'))), out: '3',
+      options: [{ text: '3', correct: true }, { text: '2' }, { text: '6' }, { text: 'Ошибка' }], explain: (py ? 'append' : 'push') + ' добавил элемент в конец, стало три элемента.' };
+    qs['ls-q-loop'] = { kind: 'mcq', card: 'ls-q-loop', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: prog(asg('total', '0'), each('x', '[2, 3, 5]', set('total', 'total + x')), show('total')), out: '10',
+      options: [{ text: '10', correct: true }, { text: '5' }, { text: '235' }, { text: '2, 3, 5' }], explain: 'Цикл по очереди прибавил 2, 3 и 5. Вывод после цикла показал итог — 10.' };
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — много значений под одним именем',
+      lead: 'Переменная хранит одно значение. Список хранит сразу несколько, по порядку: покупки, оценки, этажи дома.',
+      flow: { code: prog(asg('fruits', FR), show('fruits[0]')), out: 'яблоко' },
+      points: ['Угадаешь, какой элемент достанет программа', 'Поймёшь, почему счёт с нуля', 'Добавишь элемент и пройдёшь по списку циклом', 'Посчитаешь сумму покупок'], foot: '≈ 20 минут.',
+      simple: 'Список — как подъезд: у каждой квартиры свой номер, а все вместе они под одной крышей. Только нумерация в программировании начинается с нуля.' });
+    steps.push({ id: 'predict1', kind: 'predict', tag: 'Предсказание', why: 'predict', title: 'Сначала угадай', question: 'Что выведет эта программа?',
+      code: prog(asg('fruits', FR), show('fruits[1]')), expected: 'груша',
+      options: [{ id: 'a', text: 'груша', correct: true }, { id: 'b', text: 'яблоко' }, { id: 'c', text: 'слива' }, { id: 'dk', text: 'Не знаю — проверим', dk: true }],
+      after: { ok: 'Верно: номера начинаются с нуля, поэтому fruits[1] — второй элемент.', bad: 'Почти все сначала отвечают «яблоко». Но номера в списке начинаются с нуля: fruits[0] — яблоко, fruits[1] — груша.', dk: 'Номера начинаются с нуля: fruits[0] — первый элемент, fruits[1] — второй.' } });
+    steps.push({ id: 'anatomy', kind: 'anatomy', tag: 'Разбор', why: 'worked', novice: true, title: 'Разбери запись списка', lead: 'Нажми на каждую часть — узнаешь её роль.',
+      parts: (py ? [] : [{ key: 'kw', text: 'let' }]).concat([{ key: 'name', text: (py ? '' : ' ') + 'fruits' }, { key: 'eq', text: ' = ' }, { key: 'paren', text: '[' }, { key: 'value', text: '"яблоко", "груша"' }, { key: 'paren', text: ']' }]),
+      roles: { kw: { role: 'Слово «создать»', desc: 'Как и с обычной переменной, let пишут один раз.' }, name: { role: 'Имя списка', desc: 'Одно имя на все элементы. Обычно во множественном числе: fruits, prices.' }, eq: { role: 'Знак «запомни»', desc: 'Справа — что запомнить под этим именем.' }, paren: { role: 'Квадратные скобки', desc: 'Открывают и закрывают список.' }, value: { role: 'Элементы', desc: 'Значения через запятую. Каждое получает свой номер: 0, 1, 2…' } },
+      summary: 'Итого: имя + квадратные скобки + элементы через запятую. Достать элемент: имя[номер].' });
+    steps.push({ id: 'parsons', kind: 'parsons', tag: 'Собери из блоков', why: 'parsons', novice: true, card: null, lines: true, title: 'Собери программу',
+      lead: 'Собери программу, которая выводит каждый фрукт на своей строке. Одна строка лишняя.',
+      tokens: py ? ['fruits = ["яблоко", "груша"]', 'for f in fruits:', '    print(f)', '    print(fruits)'] : ['let fruits = ["яблоко", "груша"];', 'for (const f of fruits) {', '  console.log(f);', '}', '  console.log(fruits);'],
+      solutions: [py ? ['fruits = ["яблоко", "груша"]', 'for f in fruits:', '    print(f)'] : ['let fruits = ["яблоко", "груша"];', 'for (const f of fruits) {', '  console.log(f);', '}']],
+      tipIf: (function () { var o = {}; o[py ? '    print(fruits)' : '  console.log(fruits);'] = 'Эта строка выведет весь список целиком на каждом круге, а нужен один элемент — f.'; return o; })(),
+      failMsg: function (r) { return r.wrongAt === 0 ? 'Начни со списка: цикл идёт по нему.' : 'Порядок: список, строка с for, вывод одного элемента.'; },
+      okText: 'Цикл for по списку на каждом круге кладёт в f следующий элемент.', hint: 'Список, потом for, внутри — вывод f.' });
+    steps.push(Object.assign({ id: 'fill', novice: true }, defs['ls-fill']));
+    steps.push({ id: 'predict2', kind: 'predict', tag: 'Предсказание', why: 'predict', title: 'Сколько элементов?', question: 'Что выведет эта программа?',
+      code: prog(asg('fruits', FR), show(LEN('fruits'))), expected: '3',
+      options: [{ id: 'a', text: '3', correct: true }, { id: 'b', text: '2' }, { id: 'c', text: 'слива' }, { id: 'dk', text: 'Не знаю — проверим', dk: true }],
+      after: { ok: 'Верно: элементов три, хотя последний номер — 2.', bad: (py ? 'len' : '.length') + ' считает элементы, а не номера. Элементов три.', dk: (py ? 'len' : '.length') + ' — количество элементов: здесь три.' } });
+    steps.push({ id: 'modify', kind: 'code', mode: 'modify', tag: 'Измени', why: 'modify', title: 'Добавь в список',
+      prompt: 'Программа выводит количество фруктов: 3. Добавь в список четвёртый фрукт — киви, чтобы вывелось 4.',
+      starter: prog(asg('fruits', FR), show(LEN('fruits'))), expect: '4', unchangedMsg: 'Добавь «киви» в квадратные скобки или командой добавления — и запусти снова.',
+      validate: function (out, code) {
+        var r = k.outOk(out, '4'); if (!r.ok) return r;
+        if (code.indexOf('киви') === -1) return { ok: false, msg: 'Добавь в список именно «киви».' };
+        if (!k.has(code, py ? /len\(/ : /\.length/)) return { ok: false, msg: 'Не вписывай 4 руками: пусть программа считает элементы сама.' };
+        return { ok: true };
+      },
+      hints: ['Элементы перечисляются через запятую внутри квадратных скобок.', 'Можно дописать "киви" в скобки или добавить командой ' + (py ? 'append' : 'push') + '.', asg('fruits', '["яблоко", "груша", "слива", "киви"]')],
+      solution: prog(asg('fruits', '["яблоко", "груша", "слива", "киви"]'), show(LEN('fruits'))) });
+    steps.push(Object.assign({ id: 'debug1' }, defs['ls-debug-index']));
+    steps.push(Object.assign({ id: 'debug2' }, defs['ls-debug-add']));
+    steps.push(Object.assign({ id: 'make1' }, defs['ls-write-each']));
+    steps.push(Object.assign({ id: 'make2' }, defs['ls-write-sum'], { simple: 'Это та же копилка, что в уроке про for. Только теперь цикл проходит не по числам 1–5, а по ценам из списка.' }));
+    steps.push({ id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval', title: 'Проверка без подсказок', lead: 'Пять вопросов по памяти. Перед ответом отметь, насколько ты уверен.',
+      questions: [qs['ls-q-first'], qs['ls-q-len'], qs['ls-q-last'], qs['ls-q-add'], qs['ls-q-loop']] });
+    steps.push({ id: 'explain', kind: 'explain', tag: 'Объясни', why: 'selfexp', noteKey: 'explain-lists', title: 'Объясни своими словами',
+      prompt: 'Объясни другу: что такое список, почему первый элемент — номер 0, и что выведет эта программа?', code: prog(asg('a', '[7, 8, 9]'), show('a[0] + a[2]')), min: 40,
+      model: 'Список хранит несколько значений под одним именем, у каждого свой номер. Номера начинаются с нуля, поэтому a[0] — это 7, а a[2] — 9. Программа сложит их и выведет 16.' });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Списки освоены', rosetta: false, lead: 'Теперь ты хранишь сразу много значений и обходишь их циклом. Почти любая программа работает со списками: товары, сообщения, этажи, модули дома.' });
+    return { id: 'lists', title: 'Списки: много значений под одним именем', day: 6, minutes: 20, steps: steps, cards: Object.assign({}, defs, qs), lang: lang };
+  }
+
+  /* ======================= День 7: функции ======================= */
+  function buildFuncs(lang) {
+    var k = kit(lang), py = k.py, asg = k.asg, show = k.show, prog = k.prog;
+    var fn = function (name, args, body) { return (py ? 'def ' + name + '(' + args + '):' : 'function ' + name + '(' + args + ') {') + '\n' + k.ind(body) + (py ? '' : '\n}'); };
+    var ret = function (x) { return 'return ' + x + k.END; };
+    var call = function (x) { return x + k.END; };
+    var GREET = fn('greet', 'name', show('"Привет, " + name'));
+    var AREA = fn('area', 'w, h', ret('w * h'));
+    var hasDef = function (code, name) { return k.has(code, py ? new RegExp('\\bdef\\s+' + name + '\\s*\\(') : new RegExp('\\bfunction\\s+' + name + '\\s*\\(|\\b' + name + '\\s*=\\s*(\\([^)]*\\)|\\w+)\\s*=>')); };
+
+    var defs = {};
+    defs['fn-fill'] = {
+      kind: 'fill', card: 'fn-fill', tag: 'Заполни пропуски', why: 'completion',
+      title: 'Верни результат', prompt: 'Функция double должна отдавать число, умноженное на 2. Впиши слово, которое отдаёт результат.',
+      tpl: py ? ['def double(x): ', { b: 0 }, ' x * 2'] : ['function double(x) { ', { b: 0 }, ' x * 2; }'],
+      blanks: [{ accept: ['return'], label: 'слово' }],
+      okText: 'return отдаёт результат туда, откуда функцию вызвали.', hintText: 'Это слово по-английски значит «вернуть».'
+    };
+    defs['fn-debug-return'] = {
+      kind: 'code', mode: 'debug', card: 'fn-debug-return', tag: 'Найди ошибку', why: 'debug',
+      title: 'Функция молчит', prompt: 'double(4) должна дать 8, а программа выводит ' + (py ? 'None' : 'undefined') + '. Исправь функцию.',
+      starter: prog(fn('double', 'x', call('x * 2')), '', show('double(4)')), expect: '8',
+      preface: 'Функция посчитала x * 2, но никому не отдала результат. Без return она возвращает «ничего».',
+      hints: ['Что функция делает с результатом x * 2?', 'Чтобы отдать результат, нужно слово return.', 'Строка внутри функции: ' + ret('x * 2')],
+      solution: prog(fn('double', 'x', ret('x * 2')), '', show('double(4)'))
+    };
+    defs['fn-debug-args'] = {
+      kind: 'code', mode: 'debug', card: 'fn-debug-args', tag: 'Найди ошибку', why: 'debug',
+      title: 'Не хватает значения', prompt: 'Площадь комнаты 3 на 4 должна быть 12. Программа ' + (py ? 'падает с ошибкой' : 'выводит NaN') + '. Исправь вызов.',
+      starter: prog(AREA, '', show('area(3)')), expect: '12',
+      hints: ['Сколько значений ждёт функция area в скобках?', 'Функция ждёт два значения: ширину и длину.', 'Вызов должен быть таким: area(3, 4)'],
+      solution: prog(AREA, '', show('area(3, 4)'))
+    };
+    defs['fn-write-square'] = {
+      kind: 'code', mode: 'write', card: 'fn-write-square', tag: 'Напиши сам', why: 'make',
+      title: 'Квадрат числа', prompt: 'Напиши функцию square, которая возвращает число, умноженное само на себя. Выведи square(7).',
+      starter: '', expect: '49',
+      validate: function (out, code) {
+        var r = k.outOk(out, '49'); if (!r.ok) return r;
+        if (!hasDef(code, 'square')) return { ok: false, msg: 'Создай функцию: ' + (py ? 'def square(n):' : 'function square(n) {') };
+        if (!k.has(code, /\breturn\b/) && !(!py && /=>/.test(code))) return { ok: false, msg: 'Функция должна вернуть результат через return.' };
+        if (!k.has(code, /square\s*\(\s*7\s*\)/)) return { ok: false, msg: 'Вызови функцию: square(7)' };
+        return { ok: true };
+      },
+      hints: ['Сначала опиши функцию, потом вызови её.', 'Внутри одна строка: ' + ret('n * n'), 'Каркас:\n' + prog(fn('square', 'n', ret('...')), '', show('square(7)'))],
+      solution: prog(fn('square', 'n', ret('n * n')), '', show('square(7)'))
+    };
+    defs['fn-write-max'] = {
+      kind: 'code', mode: 'write', card: 'fn-write-max', tag: 'Напиши сам', why: 'make',
+      title: 'Большее из двух', prompt: 'Напиши функцию bigger(a, b), которая возвращает большее из двух чисел. Выведи bigger(8, 3), а на следующей строке bigger(2, 9).',
+      starter: '', expect: '8\n9',
+      validate: function (out, code) {
+        var r = k.outOk(out, '8\n9'); if (!r.ok) return r;
+        if (!hasDef(code, 'bigger')) return { ok: false, msg: 'Создай функцию bigger.' };
+        if (!k.has(code, /\breturn\b/)) return { ok: false, msg: 'Функция должна вернуть ответ через return.' };
+        if (!k.has(code, /\bif\b/) && !k.has(code, /\bmax\s*\(/) && !k.has(code, /\?/)) return { ok: false, msg: 'Пусть функция сама выбирает большее: сравни a и b через if.' };
+        return { ok: true };
+      },
+      hints: ['Внутри функции сравни a и b.', 'Если a > b — верни a, иначе — верни b.', 'Каркас:\n' + fn('bigger', 'a, b', k.iff('a > b', ret('a'), ret('b')))],
+      solution: prog(fn('bigger', 'a, b', k.iff('a > b', ret('a'), ret('b'))), '', show('bigger(8, 3)'), show('bigger(2, 9)'))
+    };
+
+    var qs = {};
+    qs['fn-q-call'] = { kind: 'mcq', card: 'fn-q-call', tag: 'Вспомни', why: 'retrieval', q: 'Сколько раз выведется «Привет»?', code: prog(fn('hi', '', show('"Привет"')), '', call('hi()'), call('hi()')), out: 'Привет\nПривет',
+      options: [{ text: 'Два', correct: true }, { text: 'Один' }, { text: 'Три' }, { text: 'Ни разу' }], explain: 'Описание функции само ничего не делает. Каждый вызов hi() выполняет её заново — вызовов два.' };
+    qs['fn-q-define'] = { kind: 'mcq', card: 'fn-q-define', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: fn('hi', '', show('"Привет"')),
+      out: '', options: [{ text: 'Ничего', correct: true }, { text: 'Привет' }, { text: 'hi' }, { text: 'Ошибка' }], explain: 'Функция только описана, но её ни разу не вызвали. Значит, команды внутри не выполнились.' };
+    qs['fn-q-return'] = { kind: 'mcq', card: 'fn-q-return', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: prog(fn('add', 'a, b', ret('a + b')), '', show('add(2, 3) * 10')), out: '50',
+      options: [{ text: '50', correct: true }, { text: '5' }, { text: '23' }, { text: '2310' }], explain: 'add(2, 3) вернула 5, и уже это число умножилось на 10.' };
+    qs['fn-q-param'] = { kind: 'mcq', card: 'fn-q-param', tag: 'Вспомни', why: 'retrieval', q: 'Что такое name в строке ' + (py ? 'def greet(name):' : 'function greet(name) {') + '?',
+      options: [{ text: 'Параметр: имя для значения, которое передадут при вызове', correct: true }, { text: 'Название функции' }, { text: 'Текст, который выведется' }, { text: 'Ошибка: так писать нельзя' }], explain: 'Параметр — это переменная функции. При вызове greet("Аян") в name окажется «Аян».' };
+    qs['fn-q-why'] = { kind: 'mcq', card: 'fn-q-why', tag: 'Вспомни', why: 'retrieval', q: 'Зачем нужны функции?',
+      options: [{ text: 'Чтобы написать действие один раз и вызывать его много раз', correct: true }, { text: 'Чтобы программа работала без компьютера' }, { text: 'Они нужны только для вывода текста' }, { text: 'Чтобы заменить переменные' }], explain: 'Функция — это действие с именем. Её пишут один раз, а пользуются сколько угодно, с разными значениями.' };
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — свои команды',
+      lead: 'Ты уже пользовался чужими командами: ' + k.OUT + ', ' + (py ? 'len' : 'push') + '. Функция — это твоя команда: один раз описал, дальше вызываешь по имени.',
+      flow: { code: prog(GREET, '', call('greet("Аян")')), out: 'Привет, Аян' },
+      points: ['Опишешь функцию и вызовешь её', 'Передашь в неё значения', 'Научишь её возвращать результат', 'Напишешь функцию, которая сама выбирает'], foot: '≈ 20 минут.',
+      simple: 'Функция — как рецепт с названием. Ты один раз записал «как сварить чай», а потом просто говоришь «свари чай» — и неважно, для кого: для себя или для гостя.' });
+    steps.push({ id: 'predict1', kind: 'predict', tag: 'Предсказание', why: 'predict', title: 'Сначала угадай', question: 'Что выведет эта программа?',
+      code: prog(GREET, '', call('greet("Аян")'), call('greet("Алия")')), expected: 'Привет, Аян\nПривет, Алия',
+      options: [{ id: 'a', text: 'Привет, Аян и Привет, Алия', correct: true }, { id: 'b', text: 'Только Привет, Аян' }, { id: 'c', text: 'Привет, name' }, { id: 'dk', text: 'Не знаю — проверим', dk: true }],
+      after: { ok: 'Верно: функцию вызвали дважды, и каждый раз в name попадало своё имя.', bad: 'Функцию вызвали два раза. При каждом вызове в name попадает то, что стоит в скобках: сначала «Аян», потом «Алия».', dk: 'Каждый вызов выполняет функцию заново, а в name попадает значение из скобок.' } });
+    steps.push({ id: 'anatomy', kind: 'anatomy', tag: 'Разбор', why: 'worked', novice: true, title: 'Разбери описание функции', lead: 'Нажми на каждую часть — узнаешь её роль.',
+      parts: py ? [{ key: 'kw', text: 'def' }, { key: 'name', text: ' greet' }, { key: 'paren', text: '(name)' }, { key: 'colon', text: ':' }] : [{ key: 'kw', text: 'function' }, { key: 'name', text: ' greet' }, { key: 'paren', text: '(name)' }, { key: 'brace', text: ' {' }],
+      roles: { kw: { role: 'Слово «функция»', desc: py ? 'def — сокращение от define, «описать».' : 'function — «функция».' }, name: { role: 'Имя функции', desc: 'По нему функцию потом вызывают: greet(…).' }, paren: { role: 'Параметры', desc: 'В скобках — имена для значений, которые передадут при вызове. Их может не быть совсем: ().' }, colon: { role: 'Двоеточие', desc: 'Дальше с отступом — тело функции: что она делает.' }, brace: { role: 'Фигурная скобка', desc: 'Открывает тело функции; в конце его закрывает }.' } },
+      summary: 'Итого: описание ничего не выполняет. Команды внутри сработают только при вызове: greet("Аян").' });
+    steps.push({ id: 'parsons', kind: 'parsons', tag: 'Собери из блоков', why: 'parsons', novice: true, card: null, lines: true, title: 'Собери программу',
+      lead: 'Собери программу, которая описывает функцию и вызывает её. Одна строка лишняя.',
+      tokens: py ? ['def hello():', '    print("Привет")', 'hello()', 'hello'] : ['function hello() {', '  console.log("Привет");', '}', 'hello();', 'hello;'],
+      solutions: [py ? ['def hello():', '    print("Привет")', 'hello()'] : ['function hello() {', '  console.log("Привет");', '}', 'hello();']],
+      tipIf: (function () { var o = {}; o[py ? 'hello' : 'hello;'] = 'Без скобок функция не вызывается — это просто её имя.'; return o; })(),
+      failMsg: function (r) { return r.wrongAt === 0 ? 'Начни с описания функции.' : 'Порядок: описание, тело, вызов со скобками.'; },
+      okText: 'Сначала описали, потом вызвали — со скобками.', hint: 'Строка с ' + (py ? 'def' : 'function') + ', потом тело, потом вызов hello().' });
+    steps.push(Object.assign({ id: 'fill', novice: true }, defs['fn-fill']));
+    steps.push({ id: 'predict2', kind: 'predict', tag: 'Предсказание', why: 'predict', title: 'Вывести или вернуть?', question: 'Что выведет эта программа?',
+      code: prog(fn('double', 'x', ret('x * 2')), '', show('double(5) + 1')), expected: '11',
+      options: [{ id: 'a', text: '11', correct: true }, { id: 'b', text: '10' }, { id: 'c', text: '6' }, { id: 'd', text: 'Ошибка' }, { id: 'dk', text: 'Не знаю — проверим', dk: true }],
+      after: { ok: 'Верно: double(5) вернула 10, и с этим числом можно дальше считать.', bad: 'return отдаёт результат наружу. double(5) превратилась в 10, к нему прибавили 1 — получилось 11.', dk: 'double(5) вернула 10, к нему прибавили 1 — 11.' } });
+    steps.push({ id: 'modify', kind: 'code', mode: 'modify', tag: 'Измени', why: 'modify', title: 'Другая комната',
+      prompt: 'Функция area считает площадь. Сейчас выводится площадь комнаты 3 на 4. Поменяй вызов так, чтобы вывелась площадь комнаты 5 на 6.',
+      starter: prog(AREA, '', show('area(3, 4)')), expect: '30', unchangedMsg: 'Поменяй числа в вызове area(…) — и запусти снова.',
+      validate: function (out, code) {
+        var r = k.outOk(out, '30'); if (!r.ok) return r;
+        if (!k.has(code, /area\s*\(\s*5\s*,\s*6\s*\)|area\s*\(\s*6\s*,\s*5\s*\)/)) return { ok: false, msg: 'Посчитай через функцию: area(5, 6).' };
+        return { ok: true };
+      },
+      hints: ['Функцию трогать не нужно — только вызов.', 'Числа в скобках вызова — это w и h.', show('area(5, 6)')],
+      solution: prog(AREA, '', show('area(5, 6)')) });
+    steps.push(Object.assign({ id: 'debug1' }, defs['fn-debug-return']));
+    steps.push(Object.assign({ id: 'debug2' }, defs['fn-debug-args']));
+    steps.push(Object.assign({ id: 'make1' }, defs['fn-write-square']));
+    steps.push(Object.assign({ id: 'make2' }, defs['fn-write-max'], { simple: 'Внутри функции можно всё, что ты уже знаешь: условия, циклы, списки. Здесь — условие из Дня 3, только вместо вывода стоит return.' }));
+    steps.push({ id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval', title: 'Проверка без подсказок', lead: 'Пять вопросов по памяти. Перед ответом отметь, насколько ты уверен.',
+      questions: [qs['fn-q-call'], qs['fn-q-define'], qs['fn-q-return'], qs['fn-q-param'], qs['fn-q-why']] });
+    steps.push({ id: 'explain', kind: 'explain', tag: 'Объясни', why: 'selfexp', noteKey: 'explain-funcs', title: 'Объясни своими словами',
+      prompt: 'Объясни другу: что делает эта программа по шагам и чем return отличается от вывода?', code: prog(AREA, '', show('area(2, 3) + area(1, 4)')), min: 40,
+      model: 'Функция area принимает ширину и длину и возвращает их произведение. area(2, 3) возвращает 6, area(1, 4) — 4. Эти числа складываются, и выводится 10. return отдаёт число программе, чтобы с ним можно было считать дальше, а вывод только показывает его на экране.' });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Функции освоены', rosetta: false, lead: 'Переменные, условия, циклы, списки и функции — основа любой программы. Дальше это всё складывается в настоящие проекты, например в калькулятор сметы.' });
+    return { id: 'funcs', title: 'Функции: свои команды', day: 7, minutes: 20, steps: steps, cards: Object.assign({}, defs, qs), lang: lang };
+  }
+
+  /* ======================= HTML ======================= */
+  function htmlText(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
+  function sameText(a, b) { return a.replace(/[.!]+$/, '').toLowerCase() === b.replace(/[.!]+$/, '').toLowerCase(); }
+  function htmlMcq(id, q, code, options, explain) { return { kind: 'mcq', card: id, tag: 'Вспомни', why: 'retrieval', q: q, code: code, codeLang: 'html', options: options, explain: explain }; }
+
+  function buildHtml1() {
+    var defs = {};
+    defs['h-h1'] = { kind: 'html', card: 'h-h1', tag: 'Напиши сам', title: 'Первый заголовок', prompt: 'Сделай на странице главный заголовок с текстом: Мой первый сайт',
+      starter: '', hints: ['Главный заголовок — тег h1.', 'Открывающий тег, текст, закрывающий тег со слешем.', '<h1>…</h1>'], solution: '<h1>Мой первый сайт</h1>',
+      validate: function (doc) {
+        var h1 = doc.querySelector('h1');
+        if (!h1) return { ok: false, msg: 'На странице нет тега h1. Главный заголовок пишут так: <h1>текст</h1>' };
+        if (!sameText(htmlText(h1), 'Мой первый сайт')) return { ok: false, msg: 'В заголовке должно быть ровно: Мой первый сайт. Сейчас: ' + (htmlText(h1) || 'пусто') + '.' };
+        return { ok: true };
+      } };
+    defs['h-p'] = { kind: 'html', card: 'h-p', tag: 'Измени', title: 'Второй абзац', prompt: 'Под первым абзацем добавь второй с текстом: Я учу HTML.',
+      starter: '<h1>Обо мне</h1>\n<p>Меня зовут Аян.</p>\n', hints: ['Каждый абзац — свой тег p.', 'Новый абзац: <p>…</p> на новой строке.', '<p>Я учу HTML.</p>'], solution: '<h1>Обо мне</h1>\n<p>Меня зовут Аян.</p>\n<p>Я учу HTML.</p>',
+      validate: function (doc) {
+        var ps = doc.querySelectorAll('p');
+        if (ps.length < 2) return { ok: false, msg: 'Абзацев должно быть два. Каждый — в своём теге p.' };
+        if (!Array.prototype.some.call(ps, function (p) { return sameText(htmlText(p), 'Я учу HTML'); })) return { ok: false, msg: 'Во втором абзаце должен быть текст: Я учу HTML.' };
+        return { ok: true };
+      } };
+    defs['h-close'] = { kind: 'html', card: 'h-close', tag: 'Найди ошибку', title: 'Всё стало огромным', prompt: 'Абзац должен быть обычным текстом, а он стал таким же крупным, как заголовок. Найди и исправь ошибку.',
+      preface: 'Браузер не ругается на ошибки в HTML. Он молча пытается угадать, что ты имел в виду, — и часто угадывает не так.',
+      starter: '<h1>Заголовок\n<p>Обычный абзац текста.</p>\n', hints: ['Посмотри, где заканчивается заголовок.', 'У h1 нет закрывающего тега, поэтому абзац оказался внутри заголовка.', 'После слова «Заголовок» допиши </h1>.'], solution: '<h1>Заголовок</h1>\n<p>Обычный абзац текста.</p>\n',
+      validate: function (doc) {
+        var h1 = doc.querySelector('h1');
+        if (!h1) return { ok: false, msg: 'Заголовок h1 пропал — верни его.' };
+        if (h1.querySelector('p')) return { ok: false, msg: 'Абзац всё ещё внутри заголовка. Закрой h1 до начала абзаца.' };
+        if (!doc.querySelector('p')) return { ok: false, msg: 'Абзац p пропал — верни его.' };
+        return { ok: true };
+      } };
+    defs['h-levels'] = { kind: 'html', card: 'h-levels', tag: 'Напиши сам', title: 'Уровни заголовков', prompt: 'Сделай главный заголовок «Рецепт», а под ним заголовок второго уровня «Ингредиенты».',
+      starter: '', hints: ['Главный заголовок — h1, второго уровня — h2.', 'Сначала h1, потом h2.', '<h1>Рецепт</h1>\n<h2>…</h2>'], solution: '<h1>Рецепт</h1>\n<h2>Ингредиенты</h2>',
+      validate: function (doc) {
+        var h1 = doc.querySelector('h1'), h2 = doc.querySelector('h2');
+        if (!h1 || !sameText(htmlText(h1), 'Рецепт')) return { ok: false, msg: 'Нужен главный заголовок h1 с текстом «Рецепт».' };
+        if (!h2 || !sameText(htmlText(h2), 'Ингредиенты')) return { ok: false, msg: 'Нужен заголовок второго уровня h2 с текстом «Ингредиенты».' };
+        if (h1.compareDocumentPosition(h2) & 2) return { ok: false, msg: 'Главный заголовок должен стоять выше второго.' };
+        return { ok: true };
+      } };
+    var qs = {};
+    qs['h-q-tag'] = htmlMcq('h-q-tag', 'Что такое тег в HTML?', null, [{ text: 'Метка в угловых скобках, которая говорит, что это за часть страницы', correct: true }, { text: 'Цвет текста' }, { text: 'Адрес сайта' }, { text: 'Команда, которая считает числа' }], 'Тег — это метка: <h1> значит «заголовок», <p> — «абзац». Браузер по тегам решает, как показать текст.');
+    qs['h-q-close'] = htmlMcq('h-q-close', 'Чем закрывающий тег отличается от открывающего?', '<p>Текст</p>', [{ text: 'Перед именем стоит слеш: </p>', correct: true }, { text: 'Он пишется заглавными буквами' }, { text: 'Ничем' }, { text: 'Он в круглых скобках' }], 'Закрывающий тег повторяет имя открывающего, но со слешем: <p> … </p>.');
+    qs['h-q-see'] = htmlMcq('h-q-see', 'Что увидит человек на странице?', '<p>Привет!</p>', [{ text: 'Привет!', correct: true }, { text: '<p>Привет!</p>' }, { text: 'p Привет! p' }, { text: 'Пустую страницу' }], 'Теги браузер не показывает: он использует их как указания. На экране только текст.');
+    qs['h-q-h1'] = htmlMcq('h-q-h1', 'Какой заголовок по умолчанию самый крупный?', null, [{ text: 'h1', correct: true }, { text: 'h6' }, { text: 'h3' }, { text: 'Все одинаковые' }], 'Заголовки идут от h1 до h6 — от главного к самому мелкому. Как в оглавлении книги: глава, раздел, подраздел.');
+    qs['h-q-forgive'] = htmlMcq('h-q-forgive', 'Что делает браузер, если в HTML есть ошибка?', null, [{ text: 'Молча пытается угадать и показывает страницу как получится', correct: true }, { text: 'Показывает сообщение об ошибке' }, { text: 'Не открывает страницу' }, { text: 'Исправляет ошибку в файле' }], 'В отличие от Python и JavaScript, HTML не падает с ошибкой. Поэтому ошибку видно только по тому, как выглядит страница.');
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня ты сделаешь первую веб-страницу',
+      lead: 'Любая страница в интернете — это текст с метками-тегами. Метки говорят браузеру: это заголовок, это абзац, это картинка.',
+      flow: { code: '<h1>Привет!</h1>\n<p>Это моя страница.</p>', out: 'Привет!\nЭто моя страница.' },
+      points: ['Поймёшь, что такое тег', 'Сделаешь заголовок и абзацы', 'Починишь незакрытый тег', 'Увидишь результат сразу, как в браузере'], foot: '≈ 15 минут. Справа от редактора — живой просмотр страницы.',
+      simple: 'HTML — не язык программирования: он ничего не считает. Это разметка, как пометки маркером в тексте: «это заголовок», «это абзац».' });
+    steps.push(Object.assign({ id: 'see' }, qs['h-q-see'], { title: 'Сначала угадай' }));
+    steps.push({ id: 'anatomy', kind: 'anatomy', tag: 'Разбор', why: 'worked', novice: true, title: 'Разбери элемент', lead: 'Нажми на каждую часть.',
+      parts: [{ key: 'kw', text: '<h1>' }, { key: 'value', text: 'Привет!' }, { key: 'semi', text: '</h1>' }],
+      roles: { kw: { role: '1 · Открывающий тег', desc: 'Имя тега в угловых скобках: здесь начинается заголовок.' }, value: { role: '2 · Содержимое', desc: 'То, что человек увидит на странице.' }, semi: { role: '3 · Закрывающий тег', desc: 'То же имя, но со слешем: здесь заголовок заканчивается.' } },
+      summary: 'Итого: открыл тег — написал содержимое — закрыл тот же тег. Вместе это называется элемент.' });
+    steps.push({ id: 'parsons', kind: 'parsons', tag: 'Собери из блоков', why: 'parsons', novice: true, card: null, lines: true, title: 'Собери страницу',
+      lead: 'Собери страницу: сверху заголовок «Мой город», под ним абзац. Одна строка лишняя.',
+      tokens: ['<h1>Мой город</h1>', '<p>Усть-Каменогорск стоит на Иртыше.</p>', '<p>Мой город</h1>'], solutions: [['<h1>Мой город</h1>', '<p>Усть-Каменогорск стоит на Иртыше.</p>']],
+      tipIf: { '<p>Мой город</h1>': 'Тег открыт как p, а закрыт как h1. Открывающий и закрывающий теги должны совпадать.' },
+      failMsg: function () { return 'Сверху — заголовок, под ним — абзац.'; }, okText: 'Браузер показывает элементы сверху вниз, в том же порядке, что в разметке.', hint: 'Сначала h1, потом p.' });
+    steps.push(Object.assign({ id: 'make1' }, defs['h-h1']));
+    steps.push(Object.assign({ id: 'modify' }, defs['h-p']));
+    steps.push(Object.assign({ id: 'debug1' }, defs['h-close']));
+    steps.push(Object.assign({ id: 'make2' }, defs['h-levels']));
+    steps.push({ id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval', title: 'Проверка без подсказок', lead: 'Четыре вопроса по памяти.', questions: [qs['h-q-tag'], qs['h-q-close'], qs['h-q-h1'], qs['h-q-forgive']] });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Первая страница готова', rosetta: false, lead: 'Ты знаешь, что такое тег, и умеешь делать заголовки и абзацы. В песочнице теперь есть вкладка HTML — там можно верстать что угодно.' });
+    return { id: 'html1', title: 'Первая страница: теги', day: 1, minutes: 15, steps: steps, cards: Object.assign({}, defs, qs), keyLang: 'all', stepLang: 'html', track: 'html' };
+  }
+
+  function buildHtml2() {
+    var defs = {};
+    var LIST = '<ul>\n  <li>Хлеб</li>\n  <li>Молоко</li>\n</ul>';
+    defs['h-ul'] = { kind: 'html', card: 'h-ul', tag: 'Напиши сам', title: 'Список покупок', prompt: 'Сделай маркированный список из трёх пунктов: Хлеб, Молоко, Яйца.',
+      starter: '', hints: ['Весь список — тег ul, каждый пункт — тег li.', 'Пункты li стоят внутри ul.', LIST], solution: '<ul>\n  <li>Хлеб</li>\n  <li>Молоко</li>\n  <li>Яйца</li>\n</ul>',
+      validate: function (doc) {
+        var ul = doc.querySelector('ul');
+        if (!ul) return { ok: false, msg: 'Нужен список: тег ul.' };
+        var li = ul.querySelectorAll('li'), want = ['Хлеб', 'Молоко', 'Яйца'];
+        if (li.length !== 3) return { ok: false, msg: 'Пунктов li внутри ul должно быть три, сейчас: ' + li.length + '.' };
+        for (var i = 0; i < 3; i++) if (!sameText(htmlText(li[i]), want[i])) return { ok: false, msg: 'Пункт ' + (i + 1) + ' должен быть «' + want[i] + '».' };
+        return { ok: true };
+      } };
+    defs['h-ol'] = { kind: 'html', card: 'h-ol', tag: 'Напиши сам', title: 'Нумерованный список', prompt: 'Шаги важны по порядку. Сделай нумерованный список: Измерить комнату, Начертить план, Посчитать площадь.',
+      starter: '', hints: ['Нумерованный список — ol (ordered list).', 'Внутри — те же li.', '<ol>\n  <li>…</li>\n</ol>'], solution: '<ol>\n  <li>Измерить комнату</li>\n  <li>Начертить план</li>\n  <li>Посчитать площадь</li>\n</ol>',
+      validate: function (doc) {
+        var ol = doc.querySelector('ol');
+        if (!ol) return { ok: false, msg: doc.querySelector('ul') ? 'Это маркированный список ul. Для номеров нужен ol.' : 'Нужен нумерованный список: тег ol.' };
+        if (ol.querySelectorAll('li').length !== 3) return { ok: false, msg: 'Пунктов li должно быть три.' };
+        return { ok: true };
+      } };
+    defs['h-a'] = { kind: 'html', card: 'h-a', tag: 'Напиши сам', title: 'Ссылка', prompt: 'Сделай ссылку с текстом «Википедия», которая ведёт на https://ru.wikipedia.org',
+      starter: '', hints: ['Ссылка — тег a.', 'Куда ведёт — в атрибуте href, в кавычках.', '<a href="https://ru.wikipedia.org">…</a>'], solution: '<a href="https://ru.wikipedia.org">Википедия</a>',
+      validate: function (doc) {
+        var a = doc.querySelector('a');
+        if (!a) return { ok: false, msg: 'Нужна ссылка: тег a.' };
+        var href = (a.getAttribute('href') || '').replace(/\/+$/, '');
+        if (href !== 'https://ru.wikipedia.org') return { ok: false, msg: 'Адрес в href должен быть https://ru.wikipedia.org — сейчас: ' + (href || 'пусто') + '.' };
+        if (!sameText(htmlText(a), 'Википедия')) return { ok: false, msg: 'Текст ссылки должен быть «Википедия».' };
+        return { ok: true };
+      } };
+    defs['h-img'] = { kind: 'html', card: 'h-img', tag: 'Напиши сам', title: 'Картинка с описанием', prompt: 'Вставь картинку из файла house.jpg с описанием «Мой дом». Файла нет — браузер покажет описание вместо картинки, так и должно быть.',
+      starter: '', hints: ['Картинка — тег img. Закрывающего тега у него нет.', 'Файл — в атрибуте src, описание — в alt.', '<img src="house.jpg" alt="…">'], solution: '<img src="house.jpg" alt="Мой дом">',
+      validate: function (doc) {
+        var img = doc.querySelector('img');
+        if (!img) return { ok: false, msg: 'Нужен тег img.' };
+        if ((img.getAttribute('src') || '') !== 'house.jpg') return { ok: false, msg: 'Файл указывают в src: src="house.jpg".' };
+        if (!sameText((img.getAttribute('alt') || '').trim(), 'Мой дом')) return { ok: false, msg: 'Добавь описание: alt="Мой дом". Его читают программы для незрячих и показывают, если картинка не загрузилась.' };
+        return { ok: true };
+      } };
+    defs['h-href'] = { kind: 'html', card: 'h-href', tag: 'Найди ошибку', title: 'Ссылка не нажимается', prompt: 'Текст выглядит как обычный, и по нему нельзя перейти. Исправь, чтобы ссылка вела на https://ru.wikipedia.org',
+      starter: '<a>Википедия</a>\n', hints: ['Чего не хватает тегу a?', 'Без атрибута href браузер не знает, куда вести.', '<a href="https://ru.wikipedia.org">Википедия</a>'], solution: '<a href="https://ru.wikipedia.org">Википедия</a>\n',
+      validate: function (doc) { return defs['h-a'].validate(doc); } };
+    var qs = {};
+    qs['h-q-ulol'] = htmlMcq('h-q-ulol', 'Чем ul отличается от ol?', null, [{ text: 'ul — с точками, ol — с номерами', correct: true }, { text: 'ul — для ссылок, ol — для картинок' }, { text: 'Ничем' }, { text: 'ol нельзя вкладывать в страницу' }], 'ul — unordered list, неупорядоченный: пункты с точками. ol — ordered list: пункты с номерами.');
+    qs['h-q-li'] = htmlMcq('h-q-li', 'Какой тег у одного пункта списка?', null, [{ text: 'li', correct: true }, { text: 'ul' }, { text: 'p' }, { text: 'item' }], 'li — list item, пункт списка. Он всегда стоит внутри ul или ol.');
+    qs['h-q-href'] = htmlMcq('h-q-href', 'Где у ссылки указан адрес, куда она ведёт?', '<a href="https://kaz.kz">Сайт</a>', [{ text: 'В атрибуте href', correct: true }, { text: 'В тексте между тегами' }, { text: 'В закрывающем теге' }, { text: 'Адрес не нужен' }], 'Атрибут — это дополнительная настройка внутри открывающего тега. href говорит, куда вести.');
+    qs['h-q-alt'] = htmlMcq('h-q-alt', 'Зачем картинке атрибут alt?', null, [{ text: 'Описание: его читают программы для незрячих и показывают, если картинка не загрузилась', correct: true }, { text: 'Это размер картинки' }, { text: 'Это адрес файла' }, { text: 'Он нужен только для красоты' }], 'alt делает страницу доступной. Хорошее описание говорит, что на картинке, а не «картинка1».');
+    qs['h-q-void'] = htmlMcq('h-q-void', 'Как правильно вставить картинку?', null, [{ text: '<img src="a.jpg" alt="Дом">', correct: true }, { text: '<img>a.jpg</img>' }, { text: '<picture a.jpg>' }, { text: '<img src=a.jpg></img alt>' }], 'У img нет содержимого и закрывающего тега: всё нужное — в атрибутах src и alt.');
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — списки, ссылки и картинки',
+      lead: 'Три вещи, без которых не обходится почти ни одна страница: перечень, переход на другую страницу и изображение.',
+      flow: { code: LIST, out: '• Хлеб\n• Молоко' }, points: ['Сделаешь маркированный и нумерованный список', 'Сделаешь ссылку', 'Вставишь картинку с описанием', 'Узнаешь, что такое атрибут'], foot: '≈ 15 минут.' });
+    steps.push(Object.assign({ id: 'see' }, qs['h-q-ulol'], { title: 'Сначала угадай' }));
+    steps.push({ id: 'anatomy', kind: 'anatomy', tag: 'Разбор', why: 'worked', novice: true, title: 'Разбери ссылку', lead: 'Нажми на каждую часть.',
+      parts: [{ key: 'kw', text: '<a' }, { key: 'name', text: ' href=' }, { key: 'value', text: '"https://ru.wikipedia.org">' }, { key: 'eq', text: 'Википедия' }, { key: 'semi', text: '</a>' }],
+      roles: { kw: { role: '1 · Тег ссылки', desc: 'a — anchor, «якорь».' }, name: { role: '2 · Атрибут', desc: 'Дополнительная настройка внутри открывающего тега. href — куда вести.' }, value: { role: '3 · Значение атрибута', desc: 'Адрес в кавычках. Открывающий тег заканчивается знаком >.' }, eq: { role: '4 · Текст ссылки', desc: 'То, на что человек нажимает.' }, semi: { role: '5 · Закрывающий тег', desc: 'Конец ссылки.' } },
+      summary: 'Итого: атрибуты пишут внутри открывающего тега: имя="значение".' });
+    steps.push(Object.assign({ id: 'make1' }, defs['h-ul']));
+    steps.push(Object.assign({ id: 'make2' }, defs['h-ol']));
+    steps.push(Object.assign({ id: 'make3' }, defs['h-a']));
+    steps.push(Object.assign({ id: 'debug1' }, defs['h-href']));
+    steps.push(Object.assign({ id: 'make4' }, defs['h-img']));
+    steps.push({ id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval', title: 'Проверка без подсказок', lead: 'Четыре вопроса по памяти.', questions: [qs['h-q-li'], qs['h-q-href'], qs['h-q-alt'], qs['h-q-void']] });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Списки, ссылки и картинки освоены', rosetta: false, lead: 'Из этих элементов уже можно собрать простую страницу-визитку: заголовок, абзац о себе, список навыков и ссылку на контакт.' });
+    return { id: 'html2', title: 'Списки, ссылки, картинки', day: 2, minutes: 15, steps: steps, cards: Object.assign({}, defs, qs), keyLang: 'all', stepLang: 'html', track: 'html' };
+  }
+
+  /* ======================= Логика ======================= */
+  function lgMcq(id, q, options, explain) { return { kind: 'mcq', card: id, tag: 'Задача', why: 'retrieval', q: q, options: options, explain: explain }; }
+  function lgFill(id, title, prompt, tpl, accept, okText, hintText) { return { kind: 'fill', card: id, tag: 'Задача', why: 'retrieval', title: title, prompt: prompt, tpl: tpl, blanks: [{ accept: accept, label: 'ответ' }], okText: okText, hintText: hintText }; }
+
+  function buildLogic1(lang) {
+    var c = {};
+    c['lg-seq-double'] = lgFill('lg-seq-double', 'Продолжи ряд', 'Какое число следующее?', ['2, 4, 8, 16, ', { b: 0 }], ['32'], 'Каждое число вдвое больше предыдущего: 16 × 2 = 32. Так растёт память компьютеров: 2, 4, 8, 16, 32 гигабайта.', 'Сравни соседние числа: во сколько раз растёт каждое?');
+    c['lg-seq-step'] = lgFill('lg-seq-step', 'Продолжи ряд', 'Какое число следующее?', ['10, 7, 4, 1, ', { b: 0 }], ['-2', '−2', '–2'], 'Каждый раз вычитаем 3: 1 − 3 = −2. Ряд не обязан останавливаться на нуле.', 'На сколько уменьшается каждое число?');
+    c['lg-seq-square'] = lgMcq('lg-seq-square', 'Какое число следующее: 1, 4, 9, 16, …?', [{ text: '25', correct: true }, { text: '20' }, { text: '32' }, { text: '24' }], 'Это квадраты: 1×1, 2×2, 3×3, 4×4. Дальше 5×5 = 25. Разница между соседями растёт: 3, 5, 7, 9.');
+    c['lg-seq-fib'] = lgMcq('lg-seq-fib', 'Какое число следующее: 1, 1, 2, 3, 5, 8, …?', [{ text: '13', correct: true }, { text: '11' }, { text: '16' }, { text: '10' }], 'Каждое число — сумма двух предыдущих: 5 + 8 = 13. Это ряд Фибоначчи.');
+    c['lg-odd'] = lgMcq('lg-odd', 'Какое число лишнее: 2, 4, 7, 8, 10?', [{ text: '7', correct: true }, { text: '2' }, { text: '10' }, { text: '8' }], 'Все числа чётные, кроме 7.');
+    c['lg-seq-alt'] = lgMcq('lg-seq-alt', 'Какое число следующее: 1, 10, 2, 20, 3, 30, …?', [{ text: '4', correct: true }, { text: '40' }, { text: '31' }, { text: '33' }], 'Это два ряда вперемешку: 1, 2, 3, … и 10, 20, 30, … Следующим идёт первый ряд: 4.');
+    c['lg-loop'] = lgMcq('lg-loop', 'Цикл начинает с 1 и на каждом круге умножает число на 3. Какое число будет на четвёртом круге?', [{ text: '27', correct: true }, { text: '12' }, { text: '81' }, { text: '9' }], '1, 3, 9, 27 — четвёртое число 27. Найти правило ряда — значит понять, что делает цикл.');
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — закономерности',
+      lead: 'Программист постоянно ищет правило: как меняются данные от шага к шагу. Это тот же навык, что продолжить числовой ряд.',
+      points: ['Найдёшь правило в рядах чисел', 'Увидишь ряды, которые растут неравномерно', 'Свяжешь закономерность с циклом'], foot: '≈ 10 минут. Решай в уме или на бумаге.',
+      simple: 'Смотри не на числа, а на то, что происходит между ними: сколько прибавили, во сколько раз умножили.' });
+    steps.push(Object.assign({ id: 's1' }, c['lg-seq-double']));
+    steps.push(Object.assign({ id: 's2' }, c['lg-seq-step']));
+    steps.push(Object.assign({ id: 's3' }, c['lg-seq-square'], { title: 'Ряд с подвохом' }));
+    steps.push(Object.assign({ id: 's4' }, c['lg-seq-fib'], { title: 'Знаменитый ряд' }));
+    steps.push(Object.assign({ id: 's5' }, c['lg-odd'], { title: 'Найди лишнее' }));
+    steps.push(Object.assign({ id: 's6' }, c['lg-seq-alt'], { title: 'Два ряда в одном' }));
+    steps.push(Object.assign({ id: 's7' }, c['lg-loop'], { title: 'Ряд и цикл' }));
+    steps.push({ id: 'explain', kind: 'explain', tag: 'Объясни', why: 'selfexp', noteKey: 'explain-logic1', title: 'Объясни своими словами', code: '1, 3, 7, 15, 31', min: 30,
+      prompt: 'Какое правило у этого ряда и какое число будет следующим?', model: 'Каждое число — предыдущее, умноженное на 2, плюс 1: 1×2+1 = 3, 3×2+1 = 7 и так далее. Следующее: 31×2+1 = 63.' });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Закономерности найдены', rosetta: false, lead: 'Ты ищешь правило, а не угадываешь число. Именно так пишут циклы: сначала понимают, что меняется на каждом шаге.' });
+    return { id: 'logic1', title: 'Закономерности', day: 1, minutes: 10, steps: steps, cards: c, keyLang: 'all', track: 'logic' };
+  }
+
+  function buildLogic2(lang) {
+    var py = lang !== 'js';
+    var AND = py ? 'and' : '&&', OR = py ? 'or' : '||', NOT = py ? 'not' : '!';
+    var T = 'истина', F = 'ложь';
+    var c = {};
+    c['lg-and'] = lgMcq('lg-and', 'Дверь открывается, если есть ключ И ты знаешь код. Ключ есть, кода не знаешь. Откроется?', [{ text: 'Нет', correct: true }, { text: 'Да' }, { text: 'Откроется наполовину' }, { text: 'Нельзя сказать' }], 'И (' + AND + ') истинно, только когда верны обе части. Здесь одна ложна — значит, ложно всё.');
+    c['lg-or'] = lgMcq('lg-or', 'Скидка положена, если ты студент ИЛИ пенсионер. Ты студент. Скидка будет?', [{ text: 'Да', correct: true }, { text: 'Нет' }, { text: 'Только половина' }, { text: 'Нельзя сказать' }], 'ИЛИ (' + OR + ') истинно, если верна хотя бы одна часть.');
+    c['lg-not'] = lgMcq('lg-not', 'Утверждение: «идёт дождь». Дождь идёт. Чему равно НЕ «идёт дождь»?', [{ text: 'Ложь', correct: true }, { text: 'Истина' }, { text: 'Дождь' }, { text: 'Нельзя сказать' }], 'НЕ (' + NOT + ') переворачивает значение: истина становится ложью и наоборот.');
+    c['lg-and-fill'] = lgFill('lg-and-fill', 'Посчитай', 'Чему равно выражение? Впиши «истина» или «ложь».', ['истина И ложь = ', { b: 0 }], [F, 'Ложь', 'false', 'False'], 'Для И нужны обе истины. Одна ложь делает всё ложным.', 'И — это «и то, и другое».');
+    c['lg-or-fill'] = lgFill('lg-or-fill', 'Посчитай', 'Чему равно выражение? Впиши «истина» или «ложь».', ['ложь ИЛИ ложь = ', { b: 0 }], [F, 'Ложь', 'false', 'False'], 'ИЛИ ложно только в одном случае — когда обе части ложны.', 'Есть ли здесь хоть одна истина?');
+    c['lg-combo'] = lgMcq('lg-combo', 'В кино пускают, если (тебе 16 или больше ИЛИ ты со взрослым) И НЕ зал полон. Тебе 14, ты со взрослым, зал не полон. Пустят?', [{ text: 'Да', correct: true }, { text: 'Нет' }, { text: 'Только со взрослым после 16' }, { text: 'Нельзя сказать' }], 'В скобках: ложь ИЛИ истина = истина. НЕ «зал полон» = истина. Истина И истина = истина.');
+    c['lg-code'] = lgMcq('lg-code', 'Как в ' + (py ? 'Python' : 'JavaScript') + ' записать «возраст от 18 и есть паспорт»?', [{ text: 'age >= 18 ' + AND + ' passport', correct: true }, { text: 'age >= 18 ' + OR + ' passport' }, { text: 'age >= 18 ' + NOT + ' passport' }, { text: 'age >= 18 + passport' }], 'Обе части должны быть верны — значит, И: ' + AND + '.');
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — И, ИЛИ, НЕ',
+      lead: 'Условие в программе — это вопрос с ответом «да» или «нет». Три слова позволяют склеивать такие вопросы: И, ИЛИ, НЕ.',
+      points: ['Поймёшь, когда И даёт истину', 'Поймёшь, когда ИЛИ даёт истину', 'Научишься переворачивать значение через НЕ', 'Запишешь условие на ' + (py ? 'Python' : 'JavaScript')], foot: '≈ 10 минут. В коде эти слова пишутся так: ' + AND + ', ' + OR + ', ' + NOT + '.',
+      simple: 'И — строгий охранник: пропускает, только если всё в порядке. ИЛИ — добрый: хватает одного пропуска. НЕ — говорит наоборот.' });
+    steps.push(Object.assign({ id: 's1' }, c['lg-and'], { title: 'Задача про дверь' }));
+    steps.push(Object.assign({ id: 's2' }, c['lg-or'], { title: 'Задача про скидку' }));
+    steps.push(Object.assign({ id: 's3' }, c['lg-not'], { title: 'Наоборот' }));
+    steps.push(Object.assign({ id: 's4' }, c['lg-and-fill']));
+    steps.push(Object.assign({ id: 's5' }, c['lg-or-fill']));
+    steps.push(Object.assign({ id: 's6' }, c['lg-combo'], { title: 'Всё вместе' }));
+    steps.push(Object.assign({ id: 's7' }, c['lg-code'], { title: 'Теперь в коде' }));
+    steps.push({ id: 'explain', kind: 'explain', tag: 'Объясни', why: 'selfexp', noteKey: 'explain-logic2', title: 'Объясни своими словами', min: 30,
+      prompt: 'Объясни другу разницу между И и ИЛИ на своём примере из жизни.', model: 'И истинно, только если верны обе части: «пойду гулять, если тепло И нет дождя» — нужны оба условия. ИЛИ истинно, если верна хотя бы одна: «пойду гулять, если тепло ИЛИ есть зонт».' });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Логика условий освоена', rosetta: false, lead: 'Теперь ты можешь собирать сложные условия из простых. Это ровно то, что стоит после if в программах.' });
+    return { id: 'logic2', title: 'И, ИЛИ, НЕ', day: 2, minutes: 10, steps: steps, cards: c, keyLang: 'all', track: 'logic' };
+  }
+
+  /* ======================= Математика для кода ======================= */
+  function buildMath1(lang) {
+    var k = kit(lang), py = k.py, asg = k.asg, show = k.show, prog = k.prog;
+    var IDIV = function (a, b) { return py ? a + ' // ' + b : 'Math.floor(' + a + ' / ' + b + ')'; };
+    var c = {};
+    c['m-q-mod'] = { kind: 'mcq', card: 'm-q-mod', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: show('17 % 5'), out: '2', options: [{ text: '2', correct: true }, { text: '3' }, { text: '3.4' }, { text: '12' }], explain: '17 = 5 × 3 + 2. Остаток — 2.' };
+    c['m-q-even'] = { kind: 'mcq', card: 'm-q-even', tag: 'Вспомни', why: 'retrieval', q: 'Как проверить, что число n чётное?', options: [{ text: 'n % 2 == 0', correct: true }, { text: 'n / 2 == 0' }, { text: 'n % 2 == 1' }, { text: 'n == 2' }], explain: 'Чётное число делится на 2 без остатка: остаток 0.' };
+    c['m-q-small'] = { kind: 'mcq', card: 'm-q-small', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: show('3 % 10'), out: '3', options: [{ text: '3', correct: true }, { text: '0' }, { text: '10' }, { text: '0.3' }], explain: '3 меньше 10, поэтому 10 не помещается ни разу, и весь остаток — 3.' };
+    c['m-q-idiv'] = { kind: 'mcq', card: 'm-q-idiv', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: show(IDIV('17', '5')), out: '3', options: [{ text: '3', correct: true }, { text: '3.4' }, { text: '2' }, { text: '4' }], explain: 'Целая часть от деления: 5 помещается в 17 три раза.' };
+    c['m-q-clock'] = { kind: 'mcq', card: 'm-q-clock', tag: 'Вспомни', why: 'retrieval', q: 'Сейчас 22 часа. Сколько будет через 5 часов? Какое выражение это считает?', options: [{ text: '(22 + 5) % 24', correct: true }, { text: '22 + 5' }, { text: '(22 + 5) / 24' }, { text: '22 % 5' }], explain: '27 % 24 = 3: будет 3 часа ночи. Остаток «заворачивает» время по кругу.' };
+    c['m-even'] = { kind: 'code', mode: 'write', card: 'm-even', tag: 'Напиши сам', why: 'make', title: 'Чётное или нечётное', prompt: 'В n лежит 7. Если n чётное — выведи чётное, иначе — нечётное. Проверку делай через остаток %.',
+      starter: asg('n', '7') + '\n', expect: 'нечётное',
+      validate: function (out, code) { var r = k.outOk(out, 'нечётное'); if (!r.ok) return r; if (!k.has(code, /%\s*2/)) return { ok: false, msg: 'Проверь через остаток от деления на 2: n % 2' }; if (!k.has(code, /\bif\b/)) return { ok: false, msg: 'Нужно условие if.' }; return { ok: true }; },
+      hints: ['Чётное число делится на 2 без остатка.', 'Условие: n % 2 == 0', 'Каркас:\n' + k.iff('n % 2 == 0', show('"чётное"'), show('"нечётное"'))],
+      solution: prog(asg('n', '7'), k.iff('n % 2 == 0', show('"чётное"'), show('"нечётное"'))) };
+    c['m-every'] = { kind: 'code', mode: 'write', card: 'm-every', tag: 'Напиши сам', why: 'make', title: 'Каждое третье', prompt: 'Выведи числа от 1 до 12, которые делятся на 3 без остатка. Используй цикл и %.',
+      starter: '', expect: '3\n6\n9\n12',
+      validate: function (out, code) { var r = k.outOk(out, '3\n6\n9\n12'); if (!r.ok) return r; if (!k.has(code, /%\s*3/)) return { ok: false, msg: 'Проверяй делимость через остаток: i % 3 == 0' }; if (!k.has(code, /\b(for|while)\b/)) return { ok: false, msg: 'Нужен цикл по числам от 1 до 12.' }; return { ok: true }; },
+      hints: ['Цикл по числам от 1 до 12.', 'Внутри — условие: остаток от деления на 3 равен нулю.', py ? 'for i in range(1, 13):\n    if i % 3 == 0:\n        print(i)' : 'for (let i = 1; i <= 12; i++) {\n  if (i % 3 == 0) {\n    console.log(i);\n  }\n}'],
+      solution: py ? 'for i in range(1, 13):\n    if i % 3 == 0:\n        print(i)' : 'for (let i = 1; i <= 12; i++) {\n  if (i % 3 == 0) {\n    console.log(i);\n  }\n}' };
+    c['m-modules'] = { kind: 'code', mode: 'write', card: 'm-modules', tag: 'Задача', why: 'make', title: 'Модули в ряд', prompt: 'Длина участка 23 метра, модуль дома — 6 метров. Выведи на одной строке, сколько целых модулей поместится, а на следующей — сколько метров останется.',
+      starter: prog(asg('plot', '23'), asg('module', '6')) + '\n', expect: '3\n5',
+      validate: function (out, code) { var r = k.outOk(out, '3\n5'); if (!r.ok) return r; if (!k.has(code, /%/)) return { ok: false, msg: 'Остаток посчитай через %.' }; if (!k.has(code, /plot/) || !k.has(code, /module/)) return { ok: false, msg: 'Считай через переменные plot и module, а не готовыми числами.' }; return { ok: true }; },
+      hints: ['Сколько раз 6 помещается в 23 — это целочисленное деление.', py ? 'Целое деление в Python: plot // module' : 'Целое деление в JavaScript: Math.floor(plot / module)', 'Остаток: plot % module'],
+      solution: prog(asg('plot', '23'), asg('module', '6'), show(IDIV('plot', 'module')), show('plot % module')) };
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — остаток от деления',
+      lead: 'Знак % в программировании — не проценты, а остаток от деления. Это одна из самых полезных операций: чётность, «каждый третий», время по кругу.',
+      flow: { code: show('17 % 5'), out: '2' }, points: ['Посчитаешь остаток в уме и в коде', 'Проверишь число на чётность', 'Выберешь каждое третье число', 'Посчитаешь, сколько модулей влезет на участок'], foot: '≈ 15 минут.',
+      simple: 'Раздай 17 конфет пятерым поровну: каждому по 3, и 2 останутся. Эти 2 — и есть остаток: 17 % 5 = 2.' });
+    steps.push({ id: 'predict1', kind: 'predict', tag: 'Предсказание', why: 'predict', title: 'Сначала угадай', question: 'Что выведет эта программа?', code: show('10 % 3'), expected: '1',
+      options: [{ id: 'a', text: '1', correct: true }, { id: 'b', text: '3' }, { id: 'c', text: '3.33' }, { id: 'dk', text: 'Не знаю — проверим', dk: true }],
+      after: { ok: 'Верно: 10 = 3 × 3 + 1.', bad: '% — это не деление и не проценты, а остаток: 3 помещается в 10 три раза, остаётся 1.', dk: '% — остаток от деления: 10 = 3 × 3 + 1, остаток 1.' } });
+    steps.push(Object.assign({ id: 'q1' }, c['m-q-mod'], { title: 'Ещё раз' }));
+    steps.push(Object.assign({ id: 'make1' }, c['m-even']));
+    steps.push(Object.assign({ id: 'make2' }, c['m-every']));
+    steps.push(Object.assign({ id: 'make3' }, c['m-modules'], { simple: 'Целое деление отвечает «сколько раз помещается», остаток — «сколько не поместилось». Они всегда идут парой.' }));
+    steps.push({ id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval', title: 'Проверка без подсказок', lead: 'Четыре вопроса по памяти.', questions: [c['m-q-even'], c['m-q-small'], c['m-q-idiv'], c['m-q-clock']] });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Остаток освоен', rosetta: false, lead: '% и целое деление встретятся тебе постоянно: в расписаниях, сетках колонн, раскладке плитки и модулей.' });
+    return { id: 'math1', title: 'Остаток от деления', day: 1, minutes: 15, steps: steps, cards: c, lang: lang, track: 'math' };
+  }
+
+  function buildMath2(lang) {
+    var k = kit(lang), py = k.py, asg = k.asg, show = k.show, prog = k.prog;
+    var ROUND = function (x) { return py ? 'round(' + x + ')' : 'Math.round(' + x + ')'; };
+    var CEIL = function (x) { return py ? 'math.ceil(' + x + ')' : 'Math.ceil(' + x + ')'; };
+    var FLOOR = function (x) { return py ? 'math.floor(' + x + ')' : 'Math.floor(' + x + ')'; };
+    var IMP = py ? 'import math\n' : '';
+    var c = {};
+    c['m-q-pct'] = { kind: 'mcq', card: 'm-q-pct', tag: 'Вспомни', why: 'retrieval', q: 'Сколько будет 20% от 3000?', options: [{ text: '600', correct: true }, { text: '60' }, { text: '2400' }, { text: '1500' }], explain: '20% — это 20/100 = 0.2. 3000 × 0.2 = 600.' };
+    c['m-q-ceil'] = { kind: 'mcq', card: 'm-q-ceil', tag: 'Вспомни', why: 'retrieval', q: 'В машину помещается 20 листов фанеры, везти нужно 45. Какая операция даст число рейсов?', options: [{ text: 'Округление вверх: ceil(45 / 20) = 3', correct: true }, { text: 'Обычное округление: round(45 / 20) = 2' }, { text: 'Округление вниз: floor(45 / 20) = 2' }, { text: 'Остаток: 45 % 20 = 5' }], explain: 'Даже 5 оставшихся листов требуют ещё одного рейса. Когда «неполное» всё равно занимает целую единицу — округляют вверх.' };
+    c['m-q-floor'] = { kind: 'mcq', card: 'm-q-floor', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: IMP + show(FLOOR('7.9')), out: '7', options: [{ text: '7', correct: true }, { text: '8' }, { text: '7.9' }, { text: '0.9' }], explain: 'floor округляет вниз, до ближайшего целого, не большего числа.' };
+    c['m-q-half'] = { kind: 'mcq', card: 'm-q-half', tag: 'Вспомни', why: 'retrieval', q: 'Что выведет эта программа?', code: show(ROUND('2.5')), out: py ? '2' : '3',
+      options: py ? [{ text: '2', correct: true }, { text: '3' }, { text: '2.5' }, { text: 'Ошибка' }] : [{ text: '3', correct: true }, { text: '2' }, { text: '2.5' }, { text: 'Ошибка' }],
+      explain: py ? 'Подвох: Python округляет половину к ближайшему чётному. round(2.5) = 2, а round(3.5) = 4. Для денег такие мелочи важны.' : 'Math.round округляет половину вверх: 2.5 → 3. В Python было бы 2 — там половина идёт к ближайшему чётному.' };
+    c['m-q-share'] = { kind: 'mcq', card: 'm-q-share', tag: 'Вспомни', why: 'retrieval', q: 'Цена выросла с 2000 до 2500. На сколько процентов?', options: [{ text: '25%', correct: true }, { text: '20%' }, { text: '500%' }, { text: '50%' }], explain: 'Рост — 500. От старой цены это 500 / 2000 = 0.25, то есть 25%. Процент всегда считают от того, с чем сравнивают.' };
+    c['m-discount'] = { kind: 'code', mode: 'write', card: 'm-discount', tag: 'Задача', why: 'make', title: 'Цена со скидкой', prompt: 'Цена 2000, скидка 15%. Посчитай и выведи цену со скидкой.',
+      starter: prog(asg('price', '2000'), asg('discount', '15')) + '\n', expect: '1700',
+      validate: function (out, code) { var r = k.outOk(String(out).replace(/\.0+(\n|$)/g, '$1'), '1700'); if (!r.ok) return r; if (!k.has(code, /price/) || !k.has(code, /discount/) || !k.has(code, /100/)) return { ok: false, msg: 'Посчитай через переменные: price * (100 - discount) / 100' }; return { ok: true }; },
+      hints: ['Скидка 15% — значит, платишь 85% цены.', '85% от цены: price * 85 / 100', 'Через переменные: price * (100 - discount) / 100'],
+      solution: prog(asg('price', '2000'), asg('discount', '15'), show(py ? 'price * (100 - discount) // 100' : 'price * (100 - discount) / 100')) };
+    c['m-buses'] = { kind: 'code', mode: 'write', card: 'm-buses', tag: 'Задача', why: 'make', title: 'Сколько рейсов', prompt: 'Нужно перевезти 45 листов фанеры, в машину помещается 20. Выведи, сколько нужно рейсов.',
+      starter: IMP + prog(asg('sheets', '45'), asg('per_trip', '20')) + '\n', expect: '3',
+      validate: function (out, code) { var r = k.outOk(out, '3'); if (!r.ok) return r; if (!k.has(code, /ceil/)) return { ok: false, msg: 'Округли вверх: ' + CEIL('sheets / per_trip') }; return { ok: true }; },
+      hints: ['45 / 20 = 2.25 — неполный рейс тоже рейс.', 'Нужно округление вверх.', show(CEIL('sheets / per_trip'))],
+      solution: IMP + prog(asg('sheets', '45'), asg('per_trip', '20'), show(CEIL('sheets / per_trip'))) };
+
+    var steps = [];
+    steps.push({ id: 'goal', kind: 'intro', tag: 'Цель', title: 'Сегодня — проценты и округление',
+      lead: 'Скидки, налоги, сметы, количество материалов — всё это проценты и округление. Ошибка в одном знаке здесь стоит денег.',
+      flow: { code: show('2000 * 15 / 100'), out: '300' + (py ? '.0' : '') }, points: ['Посчитаешь процент и цену со скидкой', 'Выберешь правильное округление', 'Узнаешь подвох с округлением половины'], foot: '≈ 15 минут.',
+      simple: 'Процент — это сотая часть. 15% от 2000 — это 2000, разделённое на 100 и умноженное на 15.' });
+    steps.push({ id: 'predict1', kind: 'predict', tag: 'Предсказание', why: 'predict', title: 'Сначала угадай', question: 'Что выведет эта программа?', code: show('3000 * 20 / 100'), expected: py ? '600.0' : '600',
+      options: [{ id: 'a', text: py ? '600.0' : '600', correct: true }, { id: 'b', text: '60' }, { id: 'c', text: '2400' }, { id: 'dk', text: 'Не знаю — проверим', dk: true }],
+      after: { ok: 'Верно: 20% от 3000 — это 600.' + (py ? ' «.0» появилось, потому что деление / в Python всегда даёт дробное число.' : ''), bad: '20% — это 20 сотых: 3000 / 100 × 20 = 600.', dk: '20% от 3000: 3000 × 20 / 100 = 600.' } });
+    steps.push(Object.assign({ id: 'q1' }, c['m-q-pct'], { title: 'Процент в уме' }));
+    steps.push(Object.assign({ id: 'make1' }, c['m-discount']));
+    steps.push(Object.assign({ id: 'q2' }, c['m-q-ceil'], { title: 'Какое округление?' }));
+    steps.push(Object.assign({ id: 'make2' }, c['m-buses']));
+    steps.push(Object.assign({ id: 'q3' }, c['m-q-half'], { title: 'Подвох с половиной' }));
+    steps.push({ id: 'quiz', kind: 'quiz', tag: 'Вспомни', why: 'retrieval', title: 'Проверка без подсказок', lead: 'Два вопроса по памяти.', questions: [c['m-q-floor'], c['m-q-share']] });
+    steps.push({ id: 'done', kind: 'done', tag: 'Готово', title: 'Проценты и округление освоены', rosetta: false, lead: 'Это основа любой сметы: цена материалов, наценка, скидка подрядчика и число машин для доставки.' });
+    return { id: 'math2', title: 'Проценты и округление', day: 2, minutes: 15, steps: steps, cards: c, lang: lang, track: 'math' };
+  }
+
+  var BUILDERS = { hello: buildHello, vars: buildVars, cond: buildCond, loops: buildLoops, 'for': buildFor, lists: buildLists, funcs: buildFuncs,
+    html1: buildHtml1, html2: buildHtml2, logic1: buildLogic1, logic2: buildLogic2, math1: buildMath1, math2: buildMath2 };
   function build(lang, id) { return (BUILDERS[id] || buildHello)(lang); }
   // все карточки повторения всех уроков для языка (id карточек уникальны между уроками)
   function allCards(lang) {
@@ -1412,5 +1963,5 @@
     return out;
   }
 
-  window.Course = { build: build, allCards: allCards, LESSONS: LESSONS, WHY: WHY, LINKS: LINKS, ROSETTA: ROSETTA, ROADMAP: ROADMAP };
+  window.Course = { build: build, allCards: allCards, LESSONS: LESSONS, TRACKS: TRACKS, WHY: WHY, LINKS: LINKS, ROSETTA: ROSETTA, ROADMAP: ROADMAP };
 })();
